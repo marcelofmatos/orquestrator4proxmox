@@ -7,6 +7,7 @@ const resources = [
   { vmid: 100, name: 'vpn', status: 'running', node: 'n1', tags: 'infra;mgmt', template: 0, type: 'qemu' },
   { vmid: 101, name: 'c1', status: 'running', node: 'n1', tags: 'cliente', template: 0, maxcpu: 4, maxmem: 8, type: 'qemu' },
   { vmid: 998, name: 't', status: 'stopped', node: 'n1', tags: 'template', template: 1, type: 'qemu' },
+  { vmid: 997, name: 't-mgmt', status: 'stopped', node: 'n1', tags: 'template;mgmt', template: 1, type: 'qemu' },
 ];
 
 function fakeClient(over: Partial<Record<string, any>> = {}) {
@@ -63,6 +64,10 @@ describe('VmService.create', () => {
     const putArgs = client.put.mock.calls.find((c: any[]) => c[0] === '/nodes/n1/qemu/103/config');
     expect(putArgs[1]).toMatchObject({ tags: 'cliente', cores: 2, sockets: 1, memory: 2048 });
   });
+  it('rejeita clonar de template com tag oculta', async () => {
+    const svc = new VmService(fakeClient() as any, policy, 'local-zfs');
+    await expect(svc.create({ templateId: 997, name: 'x', start: false })).rejects.toBeInstanceOf(NotFoundError);
+  });
   it('rejeita clonar de um id que não é template', async () => {
     const svc = new VmService(fakeClient() as any, policy, 'local-zfs');
     await expect(svc.create({ templateId: 101, name: 'x', start: false })).rejects.toBeInstanceOf(NotFoundError);
@@ -73,6 +78,10 @@ describe('VmService.listTemplates / meta / dashboard', () => {
   it('listTemplates retorna só templates', async () => {
     const svc = new VmService(fakeClient() as any, policy, 'local-zfs');
     expect((await svc.listTemplates()).map((t) => t.vmid)).toEqual([998]);
+  });
+  it('listTemplates esconde template com tag oculta (mgmt/infra)', async () => {
+    const svc = new VmService(fakeClient() as any, policy, 'local-zfs');
+    expect((await svc.listTemplates()).map((t) => t.vmid)).not.toContain(997);
   });
   it('meta retorna nodes distintos e o storage alvo', async () => {
     const svc = new VmService(fakeClient() as any, policy, 'local-zfs');

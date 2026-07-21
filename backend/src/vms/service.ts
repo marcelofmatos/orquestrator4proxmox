@@ -1,7 +1,7 @@
 import type { ProxmoxClient } from '../proxmox/client.js';
 import type { ClusterVm, TaskStatus } from '../proxmox/types.js';
 import { NotFoundError, ProxmoxError } from '../errors.js';
-import { filterVisible, isClientVisible, type TagPolicy } from './visibility.js';
+import { filterVisible, isClientVisible, parseTags, type TagPolicy } from './visibility.js';
 
 export interface CreateVmInput {
   templateId: number; name: string; cores?: number; memoryMB?: number; diskGB?: number;
@@ -66,7 +66,8 @@ export class VmService {
 
   async create(input: CreateVmInput): Promise<{ vmid: number; node: string }> {
     const tpl = (await this.resources()).find((v) => v.vmid === input.templateId);
-    if (!tpl || tpl.template !== 1) throw new NotFoundError('template não encontrado');
+    // mesma fronteira da listagem: template oculto (mgmt/infra) não pode ser clonado
+    if (!tpl || !this.isOfferableTemplate(tpl)) throw new NotFoundError('template não encontrado');
     const node = tpl.node;
     const newid = parseInt(await this.px.get<string>('/cluster/nextid'), 10);
 
@@ -97,8 +98,13 @@ export class VmService {
     return { vmid: newid, node };
   }
 
+  /** Um template é ofertável se não carrega nenhuma tag oculta (mgmt/infra). */
+  private isOfferableTemplate(vm: ClusterVm): boolean {
+    return vm.template === 1 && !parseTags(vm.tags).some((t) => this.policy.hiddenTags.includes(t));
+  }
+
   async listTemplates() {
-    const templates = (await this.resources()).filter((v) => v.template === 1);
+    const templates = (await this.resources()).filter((v) => this.isOfferableTemplate(v));
     // a "nota" do Proxmox fica no campo `description` da config da VM
     return Promise.all(templates.map(async (v) => {
       const cfg = await this.px
