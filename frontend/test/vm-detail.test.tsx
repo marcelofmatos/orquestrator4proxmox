@@ -7,7 +7,7 @@ import { VmDetail } from '../src/pages/VmDetail.js';
 
 vi.mock('../src/api.js', () => ({
   api: {
-    vm: vi.fn().mockResolvedValue({ vmid: 101, name: 'c1', status: { status: 'stopped' }, config: { cores: 2, memory: '2048' }, node: 'n1' }),
+    vm: vi.fn().mockResolvedValue({ vmid: 101, name: 'c1', status: { status: 'stopped' }, config: { cores: 2, memory: '2048', description: '## Plano Dedicado\n\nCliente **Acme** — suporte 24x7' }, node: 'n1' }),
     action: vi.fn().mockResolvedValue({ upid: 'UPID' }),
     remove: vi.fn(),
   },
@@ -24,6 +24,13 @@ function wrap() {
 }
 
 describe('VmDetail', () => {
+  it('mostra as notas da VM renderizadas como markdown', async () => {
+    render(wrap());
+    const h = await screen.findByText('Plano Dedicado');
+    expect(h.tagName).toBe('H2');
+    expect(screen.getByText('Acme').tagName).toBe('STRONG');
+    expect(screen.queryByText(/## Plano Dedicado/)).toBeNull();
+  });
   it('liga a VM', async () => {
     const { api } = await import('../src/api.js');
     render(wrap());

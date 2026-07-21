@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { api } from '../api.js';
 import { StatusBadge } from '../components/StatusBadge.js';
 
@@ -116,6 +118,16 @@ export function VmDetail() {
             <Stat label="Rede" value={netInfo(c.net0)} />
             <Stat label="IP (cloud-init)" value={c.ipconfig0 ? String(c.ipconfig0).replace('ip=', '') : '—'} />
           </div>
+
+          <section className="notes-card">
+            <h3>Notas</h3>
+            <div className="md">
+              {/* campo Notes/description do Proxmox — markdown, com HTML escapado */}
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {String(c.description ?? '').trim() || '_Sem notas no Proxmox._'}
+              </ReactMarkdown>
+            </div>
+          </section>
 
           <details className="card" style={{ marginTop: '1rem' }}>
             <summary style={{ cursor: 'pointer', color: 'var(--err)' }}>Excluir VM</summary>
