@@ -120,7 +120,11 @@ export class VmService {
   }
 
   async dashboard() {
-    const vms = await this.listVisible();
+    const [vms, nodes] = await Promise.all([
+      this.listVisible(),
+      this.px.get<Array<{ maxcpu?: number; maxmem?: number }>>('/cluster/resources?type=node'),
+    ]);
+    const nodeList = Array.isArray(nodes) ? nodes : [];
     const running = vms.filter((v) => v.status === 'running').length;
     return {
       total: vms.length,
@@ -128,6 +132,8 @@ export class VmService {
       stopped: vms.length - running,
       allocatedVcpu: vms.reduce((s, v) => s + (v.maxcpu ?? 0), 0),
       allocatedMemMB: Math.round(vms.reduce((s, v) => s + (v.maxmem ?? 0), 0) / (1024 * 1024)),
+      totalVcpu: nodeList.reduce((s, n) => s + (n.maxcpu ?? 0), 0),
+      totalMemMB: Math.round(nodeList.reduce((s, n) => s + (n.maxmem ?? 0), 0) / (1024 * 1024)),
     };
   }
 

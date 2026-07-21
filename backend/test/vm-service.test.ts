@@ -13,6 +13,7 @@ function fakeClient(over: Partial<Record<string, any>> = {}) {
   return {
     get: vi.fn(async (path: string) => {
       if (path === '/cluster/resources?type=vm') return resources;
+      if (path === '/cluster/resources?type=node') return [{ maxcpu: 80, maxmem: 68719476736 }];
       if (path === '/cluster/nextid') return '103';
       if (path.endsWith('/status/current')) return { status: 'running' };
       if (path.endsWith('/config')) return { cores: 2, memory: '4096' };
@@ -84,6 +85,8 @@ describe('VmService.listTemplates / meta / dashboard', () => {
     expect(d.running).toBe(1);
     expect(d.stopped).toBe(0);
     expect(d.allocatedVcpu).toBe(4);
+    expect(d.totalVcpu).toBe(80);
+    expect(d.totalMemMB).toBe(65536);
   });
 });
 

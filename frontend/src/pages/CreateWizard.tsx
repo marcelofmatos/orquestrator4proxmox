@@ -23,7 +23,10 @@ export function CreateWizard() {
 
   useEffect(() => {
     if (templateId === '' && templates.data && templates.data.length > 0) {
-      setTemplateId(templates.data[0].vmid);
+      const sorted = [...templates.data].sort((a, b) => b.vmid - a.vmid);
+      const last = Number(localStorage.getItem('o4p_last_template'));
+      const pick = sorted.find((t) => t.vmid === last) ?? sorted[0];
+      setTemplateId(pick.vmid);
     }
   }, [templates.data]);
 
@@ -43,6 +46,7 @@ export function CreateWizard() {
       if (cipassword) body.cipassword = cipassword;
       if (sshkey) body.sshkey = sshkey;
       const r = await api.create(body);
+      localStorage.setItem('o4p_last_template', String(templateId)); // lembra o último template usado
       nav(`/vms/${r.vmid}`);
     } catch (err) { setError((err as Error).message); }
     finally { setBusy(false); }
@@ -51,12 +55,19 @@ export function CreateWizard() {
   return (
     <div style={{ maxWidth: 620, margin: '2rem auto', padding: '0 1rem' }}>
       <Link to="/">← voltar</Link>
+      {busy && (
+        <div className="overlay"><div className="box">
+          <span className="spinner lg" /> Criando a VM… isso pode levar alguns segundos.
+        </div></div>
+      )}
       <h1>Nova VM (clone)</h1>
       <form onSubmit={submit} className="card">
         <label>Template
           <select value={templateId} onChange={(e) => setTemplateId(e.target.value ? Number(e.target.value) : '')}>
             <option value="">selecione…</option>
-            {templates.data?.map((t) => <option key={t.vmid} value={t.vmid}>{t.name}</option>)}
+            {[...(templates.data ?? [])].sort((a, b) => b.vmid - a.vmid).map((t) => (
+              <option key={t.vmid} value={t.vmid}>{`#${t.vmid} — ${t.name}`}</option>
+            ))}
           </select>
         </label>
         <label>Nome
@@ -86,7 +97,7 @@ export function CreateWizard() {
           <input type="checkbox" checked={start} onChange={(e) => setStart(e.target.checked)} style={{ width: 'auto' }} /> Iniciar após criar
         </label>
         {error && <p className="error">{error}</p>}
-        <button disabled={busy || templateId === '' || !nameValid}>{busy ? 'Criando…' : 'Criar VM'}</button>
+        <button disabled={busy || templateId === '' || !nameValid}>{busy ? <><span className="spinner" /> Criando…</> : 'Criar VM'}</button>
       </form>
     </div>
   );

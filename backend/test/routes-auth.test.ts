@@ -44,4 +44,12 @@ describe('rotas de auth', () => {
     expect(r.statusCode).toBe(401);
     await app.close();
   });
+
+  it('/api/config é público e devolve a marca', async () => {
+    const app = buildApp(testConfig(), { authenticate: vi.fn() as any, vmService: {} as any });
+    const r = await app.inject({ method: 'GET', url: '/api/config' });
+    expect(r.statusCode).toBe(200);
+    expect(r.json().brand).toBeTruthy();
+    await app.close();
+  });
 });

@@ -7,7 +7,11 @@ import { Login } from '../src/pages/Login.js';
 import { api } from '../src/api.js';
 
 vi.mock('../src/api.js', () => ({
-  api: { me: vi.fn().mockRejectedValue(new Error('401')), login: vi.fn() },
+  api: {
+    me: vi.fn().mockRejectedValue(new Error('401')),
+    login: vi.fn(),
+    config: vi.fn().mockResolvedValue({ brand: 'orquestrator4proxmox' }),
+  },
 }));
 
 describe('Login', () => {

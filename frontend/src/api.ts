@@ -14,7 +14,7 @@ async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
 
 export interface Vm { vmid: number; name?: string; status: string; node: string; tags?: string; maxcpu?: number; maxmem?: number; uptime?: number; }
 export interface Template { vmid: number; name?: string; node: string; }
-export interface Dashboard { total: number; running: number; stopped: number; allocatedVcpu: number; allocatedMemMB: number; }
+export interface Dashboard { total: number; running: number; stopped: number; allocatedVcpu: number; allocatedMemMB: number; totalVcpu: number; totalMemMB: number; }
 export interface Me { username: string; groups: string[]; }
 
 export const api = {
@@ -29,4 +29,5 @@ export const api = {
   templates: () => req<Template[]>('GET', '/api/templates'),
   dashboard: () => req<Dashboard>('GET', '/api/dashboard'),
   console: (id: number) => req<{ wsPath: string; password: string }>('GET', `/api/vms/${id}/console`),
+  config: () => req<{ brand: string }>('GET', '/api/config'),
 };

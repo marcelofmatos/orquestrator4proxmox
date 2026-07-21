@@ -14,3 +14,11 @@ table { width:100%; border-collapse:collapse; } th,td { text-align:left; padding
 .badge { padding:.15rem .5rem; border-radius:999px; font-size:.75rem; }
 .badge.running { background:var(--run); color:#04210f; } .badge.stopped { background:var(--stop); color:#fff; }
 .stat { background:var(--card); padding:1rem 1.25rem; border-radius:10px; } .stat b { font-size:1.6rem; display:block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner { width:1.05em; height:1.05em; border:2px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; display:inline-block; vertical-align:-2px; animation:spin .7s linear infinite; }
+.spinner.lg { width:2.2em; height:2.2em; border-width:3px; }
+.overlay { position:fixed; inset:0; background:rgba(6,10,15,.6); backdrop-filter:blur(2px); display:grid; place-items:center; z-index:50; }
+.overlay .box { background:var(--card); padding:1.5rem 2rem; border-radius:12px; display:flex; gap:1rem; align-items:center; box-shadow:0 10px 40px rgba(0,0,0,.4); }
+.gauge { margin-top:.6rem; height:8px; background:#0d1117; border-radius:999px; overflow:hidden; }
+.gauge-fill { height:100%; border-radius:999px; transition:width .5s ease; }
+.stat .sub { opacity:.55; font-size:.9rem; font-weight:400; }

@@ -1,8 +1,40 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { StatusBadge } from '../components/StatusBadge.js';
+
+function fmtBytes(n?: number): string {
+  if (!n || n <= 0) return '—';
+  const gb = n / 1024 ** 3;
+  if (gb >= 1) return `${gb.toFixed(gb < 10 ? 1 : 0)} GB`;
+  return `${Math.round(n / 1024 ** 2)} MB`;
+}
+function fmtUptime(sec?: number): string {
+  if (!sec || sec <= 0) return '—';
+  const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
+  return [d && `${d}d`, h && `${h}h`, (m || (!d && !h)) && `${m}m`].filter(Boolean).join(' ');
+}
+function diskInfo(config: Record<string, unknown> = {}): string {
+  for (const k of ['scsi0', 'virtio0', 'sata0', 'ide0']) {
+    const v = config[k];
+    if (typeof v === 'string') {
+      const m = /size=([0-9.]+)([a-zA-Z]?)/.exec(v);
+      return m ? `${m[1]} ${({ G: 'GB', M: 'MB', T: 'TB' } as Record<string, string>)[m[2]] ?? m[2] ?? 'GB'}` : v.split(',')[0];
+    }
+  }
+  return '—';
+}
+function netInfo(net0?: string): string {
+  if (!net0) return '—';
+  const bridge = /bridge=([^,]+)/.exec(net0)?.[1];
+  const mac = /(?:virtio|e1000|rtl8139|vmxnet3)=([0-9A-Fa-f:]+)/.exec(net0)?.[1];
+  return [bridge, mac].filter(Boolean).join(' · ') || net0;
+}
+
+function Stat({ label, value }: { label: string; value: ReactNode }) {
+  return <div className="stat"><b style={{ fontSize: '1.15rem' }}>{value}</b>{label}</div>;
+}
 
 export function VmDetail() {
   const { id } = useParams();
@@ -18,8 +50,14 @@ export function VmDetail() {
     try { await api.action(vmid, a); await qc.invalidateQueries({ queryKey: ['vm', vmid] }); }
     finally { setBusy(''); }
   };
-  const status = vm.data?.status?.status ?? vm.data?.status;
+
+  const s = (vm.data?.status ?? {}) as Record<string, any>;
+  const c = (vm.data?.config ?? {}) as Record<string, any>;
+  const status = s.status ?? vm.data?.status;
   const name = vm.data?.name;
+  const running = status === 'running';
+  const cores = (Number(c.cores) || 1) * (Number(c.sockets) || 1);
+  const memMax = Number(s.maxmem) || (Number(c.memory) || 0) * 1024 ** 2;
 
   const remove = async () => {
     if (confirmName !== name) return;
@@ -28,13 +66,30 @@ export function VmDetail() {
   };
 
   return (
-    <div style={{ maxWidth: 720, margin: '2rem auto', padding: '0 1rem' }}>
+    <div style={{ maxWidth: 900, margin: '2rem auto', padding: '0 1rem' }}>
       <Link to="/">← voltar</Link>
+      {busy && (
+        <div className="overlay"><div className="box">
+          <span className="spinner lg" /> {busy === 'delete' ? 'Excluindo a VM…' : 'Aplicando…'}
+        </div></div>
+      )}
       {vm.isLoading && <p>Carregando…</p>}
       {vm.data && (
         <>
           <h1>{name} <StatusBadge status={String(status)} /></h1>
-          <p>VMID {vmid} · node {vm.data.node} · {vm.data.config?.cores} vCPU · {vm.data.config?.memory} MB</p>
+          <p style={{ color: '#8b97a7' }}>VMID {vmid} · node {vm.data.node}{vm.data.tags ? ` · tags: ${vm.data.tags}` : ''}</p>
+
+          <div className="grid" style={{ padding: 0, margin: '1rem 0' }}>
+            <Stat label="vCPU" value={cores} />
+            <Stat label="CPU em uso" value={running && s.cpu != null ? `${(s.cpu * 100).toFixed(1)}%` : '—'} />
+            <Stat label="RAM (uso / total)" value={running ? `${fmtBytes(s.mem)} / ${fmtBytes(memMax)}` : fmtBytes(memMax)} />
+            <Stat label="Disco" value={diskInfo(c)} />
+            <Stat label="Uptime" value={running ? fmtUptime(s.uptime) : '—'} />
+            <Stat label="Sistema" value={c.ostype ?? '—'} />
+            <Stat label="Rede" value={netInfo(c.net0)} />
+            <Stat label="IP (cloud-init)" value={c.ipconfig0 ? String(c.ipconfig0).replace('ip=', '') : '—'} />
+          </div>
+
           <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', margin: '1rem 0' }}>
             <button disabled={!!busy} onClick={() => act('start')}>Ligar</button>
             <button disabled={!!busy} onClick={() => act('shutdown')} style={{ background: '#2d3746' }}>Encerrar (ACPI)</button>
@@ -42,12 +97,13 @@ export function VmDetail() {
             <button disabled={!!busy} onClick={() => act('reboot')} style={{ background: '#2d3746' }}>Reiniciar</button>
             <Link to={`/vms/${vmid}/console`}><button>Console</button></Link>
           </div>
+
           <details className="card" style={{ marginTop: '1rem' }}>
             <summary style={{ cursor: 'pointer', color: 'var(--err)' }}>Excluir VM</summary>
             <p>Digite o nome {name} para confirmar a exclusão.</p>
             <input value={confirmName} onChange={(e) => setConfirmName(e.target.value)} />
             <button disabled={confirmName !== name || busy === 'delete'} onClick={remove} style={{ background: 'var(--err)', marginTop: '.5rem' }}>
-              Excluir definitivamente
+              {busy === 'delete' ? <><span className="spinner" /> Excluindo…</> : 'Excluir definitivamente'}
             </button>
           </details>
         </>

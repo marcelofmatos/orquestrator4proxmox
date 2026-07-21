@@ -19,6 +19,8 @@ FROM node:20-alpine AS runtime
 WORKDIR /app/backend
 ENV NODE_ENV=production
 ARG APP_VERSION=0.0.0
+# expõe a versão do build como env em runtime (o app loga na inicialização)
+ENV APP_VERSION=${APP_VERSION}
 LABEL org.opencontainers.image.title="orquestrator4proxmox" \
       org.opencontainers.image.description="Painel web para operadores N1 gerenciarem VMs de cliente no Proxmox (clone, ciclo de vida, console noVNC), auth via LLDAP." \
       org.opencontainers.image.source="https://github.com/marcelofmatos/orquestrator4proxmox" \

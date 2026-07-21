@@ -23,6 +23,9 @@ export function buildApp(cfg: Config, deps: AppDeps): FastifyInstance {
     reply.code(500).send({ error: 'erro interno' });
   });
 
+  // config pública (marca do topo personalizável em runtime via env APP_BRAND) — sem auth
+  app.get('/api/config', async () => ({ brand: process.env.APP_BRAND || 'orquestrator4proxmox' }));
+
   app.register(async (instance) => { await registerAuthRoutes(instance, cfg, deps.authenticate); });
   app.register(async (instance) => { await registerVmRoutes(instance, cfg.jwtSecret, deps.vmService); });
   app.register(async (instance) => { await registerMetaRoutes(instance, cfg.jwtSecret, deps.vmService); });

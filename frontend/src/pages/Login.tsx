@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../auth.js';
 
 export function Login() {
-  const { user, login } = useAuth();
+  const { user, login, brand } = useAuth();
   const [username, setU] = useState('');
   const [password, setP] = useState('');
   const [error, setError] = useState('');
@@ -19,7 +19,7 @@ export function Login() {
   return (
     <div className="login">
       <form onSubmit={onSubmit} className="card">
-        <h1>orquestrator4proxmox</h1>
+        <h1>{brand}</h1>
         <label>Usuário<input value={username} onChange={(e) => setU(e.target.value)} autoFocus /></label>
         <label>Senha<input type="password" value={password} onChange={(e) => setP(e.target.value)} /></label>
         {error && <p role="alert" className="error">{error}</p>}

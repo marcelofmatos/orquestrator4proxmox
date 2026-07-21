@@ -30,5 +30,5 @@ app.setNotFoundHandler((req, reply) => {
 });
 
 app.listen({ host: '0.0.0.0', port: cfg.port })
-  .then(() => console.log(`orquestrator4proxmox on :${cfg.port}`))
+  .then(() => console.log(`orquestrator4proxmox v${process.env.APP_VERSION ?? 'dev'} escutando em :${cfg.port}`))
   .catch((e) => { console.error(e); process.exit(1); });
