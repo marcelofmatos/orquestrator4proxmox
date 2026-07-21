@@ -20,6 +20,12 @@ function svc() {
 }
 
 describe('rotas meta', () => {
+  it('exige auth', async () => {
+    const app = buildApp(cfg(), { authenticate: vi.fn() as any, vmService: svc() as any });
+    const r = await app.inject({ method: 'GET', url: '/api/dashboard' });
+    expect(r.statusCode).toBe(401);
+    await app.close();
+  });
   it('templates', async () => {
     const app = buildApp(cfg(), { authenticate: vi.fn() as any, vmService: svc() as any });
     const r = await app.inject({ method: 'GET', url: '/api/templates', cookies });

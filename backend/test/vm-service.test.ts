@@ -67,3 +67,36 @@ describe('VmService.create', () => {
     await expect(svc.create({ templateId: 101, name: 'x', start: false })).rejects.toBeInstanceOf(NotFoundError);
   });
 });
+
+describe('VmService.listTemplates / meta / dashboard', () => {
+  it('listTemplates retorna só templates', async () => {
+    const svc = new VmService(fakeClient() as any, policy, 'local-zfs');
+    expect((await svc.listTemplates()).map((t) => t.vmid)).toEqual([998]);
+  });
+  it('meta retorna nodes distintos e o storage alvo', async () => {
+    const svc = new VmService(fakeClient() as any, policy, 'local-zfs');
+    expect(await svc.meta()).toEqual({ nodes: ['n1'], storages: ['local-zfs'] });
+  });
+  it('dashboard conta só VMs cliente', async () => {
+    const svc = new VmService(fakeClient() as any, policy, 'local-zfs');
+    const d = await svc.dashboard();
+    expect(d.total).toBe(1);
+    expect(d.running).toBe(1);
+    expect(d.stopped).toBe(0);
+    expect(d.allocatedVcpu).toBe(4);
+  });
+});
+
+describe('VmService.taskStatus guard', () => {
+  it('consulta tarefa de VM cliente (vmid do UPID visível)', async () => {
+    const client = fakeClient();
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    await svc.taskStatus('UPID:n1:0000:0000:0000:qmstart:101:root@pam:');
+    expect(client.get).toHaveBeenCalledWith(expect.stringContaining('/nodes/n1/tasks/'));
+  });
+  it('recusa tarefa cujo vmid do UPID é VM de gestão', async () => {
+    const svc = new VmService(fakeClient() as any, policy, 'local-zfs');
+    await expect(svc.taskStatus('UPID:n1:0000:0000:0000:qmstart:100:root@pam:'))
+      .rejects.toBeInstanceOf(NotFoundError);
+  });
+});

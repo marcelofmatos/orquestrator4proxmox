@@ -1,9 +1,6 @@
 import type { FastifyInstance } from 'fastify';
-import { z } from 'zod';
 import type { VmService } from '../vms/service.js';
 import { makeAuthHook } from '../auth/middleware.js';
-
-const taskQuery = z.object({ node: z.string().min(1) });
 
 export async function registerMetaRoutes(app: FastifyInstance, jwtSecret: string, vms: VmService) {
   app.addHook('preHandler', makeAuthHook(jwtSecret));
@@ -12,7 +9,7 @@ export async function registerMetaRoutes(app: FastifyInstance, jwtSecret: string
   app.get('/api/dashboard', async () => vms.dashboard());
   app.get('/api/tasks/:upid', async (req) => {
     const { upid } = req.params as { upid: string };
-    const { node } = taskQuery.parse(req.query);
-    return vms.taskStatus(node, upid);
+    // node e vmid saem do próprio UPID (guardado por visibilidade no service).
+    return vms.taskStatus(upid);
   });
 }

@@ -107,7 +107,15 @@ export class VmService {
     return { nodes, storages: [this.targetStorage] };
   }
 
-  async taskStatus(node: string, upid: string) {
+  async taskStatus(upid: string) {
+    // UPID:node:pid:pstart:starttime:dtype:vmid:user:...  — deriva node e vmid do próprio
+    // UPID e exige que a VM seja visível (fronteira): sem isso um operador poderia consultar
+    // tarefas de VMs de gestão passando um node/upid arbitrário.
+    const parts = upid.split(':');
+    const node = parts[1];
+    const vmid = Number.parseInt(parts[6], 10);
+    if (!node || !Number.isInteger(vmid)) throw new NotFoundError('tarefa não encontrada');
+    await this.findVisible(vmid);
     return this.px.get(`/nodes/${node}/tasks/${encodeURIComponent(upid)}/status`);
   }
 
