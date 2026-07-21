@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { api } from '../api.js';
 
 export function CreateSimple() {
@@ -55,17 +57,24 @@ export function CreateSimple() {
       <form onSubmit={submit}>
         <div className="tpl-grid">
           {sorted.map((t) => (
-            <button
-              key={t.vmid}
-              type="button"
-              className={`tpl-card${templateId === t.vmid ? ' selected' : ''}`}
-              onClick={() => setTemplateId(t.vmid)}
-              aria-pressed={templateId === t.vmid}
-            >
+            <label key={t.vmid} className={`tpl-card${templateId === t.vmid ? ' selected' : ''}`}>
+              <input
+                type="radio"
+                name="template"
+                className="sr-only"
+                value={t.vmid}
+                checked={templateId === t.vmid}
+                onChange={() => setTemplateId(t.vmid)}
+              />
               <strong>{t.name}</strong>
               <span className="tpl-id">#{t.vmid}</span>
-              <p className="tpl-desc">{t.description?.trim() || 'Sem descrição (campo Notes do Proxmox).'}</p>
-            </button>
+              <div className="tpl-desc md">
+                {/* notes do Proxmox são markdown; react-markdown escapa HTML embutido */}
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {t.description?.trim() || '_Sem descrição (campo Notes do Proxmox)._'}
+                </ReactMarkdown>
+              </div>
+            </label>
           ))}
         </div>
         {templates.isLoading && <p>Carregando modelos…</p>}

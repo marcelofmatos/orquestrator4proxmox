@@ -8,7 +8,7 @@ import { CreateSimple } from '../src/pages/CreateSimple.js';
 vi.mock('../src/api.js', () => ({
   api: {
     templates: vi.fn().mockResolvedValue([
-      { vmid: 900, name: 'template-vm-v5', node: 'n1', description: 'Base Debian com docker' },
+      { vmid: 900, name: 'template-vm-v5', node: 'n1', description: '**Base Debian** com docker\n\n- inclui docker\n- 4 GB RAM' },
       { vmid: 901, name: 'residente-nhw-v3', node: 'n1', description: '' },
     ]),
     create: vi.fn().mockResolvedValue({ vmid: 103, node: 'n1' }),
@@ -23,8 +23,15 @@ describe('CreateSimple', () => {
   it('mostra os templates como cards com a descrição (notes) do Proxmox', async () => {
     render(wrap(<CreateSimple />));
     expect(await screen.findByText('template-vm-v5')).toBeInTheDocument();
-    expect(screen.getByText('Base Debian com docker')).toBeInTheDocument();
     expect(screen.getByText(/Sem descrição/)).toBeInTheDocument();
+  });
+
+  it('renderiza as notes do Proxmox como markdown (não texto cru)', async () => {
+    render(wrap(<CreateSimple />));
+    const bold = await screen.findByText('Base Debian');
+    expect(bold.tagName).toBe('STRONG');
+    expect(screen.getByText('inclui docker').tagName).toBe('LI');
+    expect(screen.queryByText(/\*\*Base Debian\*\*/)).toBeNull();
   });
 
   it('cria a VM com o template escolhido no card', async () => {
