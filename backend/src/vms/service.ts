@@ -94,4 +94,32 @@ export class VmService {
     if (input.start) await this.px.post(`/nodes/${node}/qemu/${newid}/status/start`);
     return { vmid: newid, node };
   }
+
+  async listTemplates() {
+    return (await this.resources())
+      .filter((v) => v.template === 1)
+      .map((v) => ({ vmid: v.vmid, name: v.name, node: v.node, tags: v.tags }));
+  }
+
+  async meta() {
+    const res = await this.resources();
+    const nodes = [...new Set(res.map((v) => v.node))];
+    return { nodes, storages: [this.targetStorage] };
+  }
+
+  async taskStatus(node: string, upid: string) {
+    return this.px.get(`/nodes/${node}/tasks/${encodeURIComponent(upid)}/status`);
+  }
+
+  async dashboard() {
+    const vms = await this.listVisible();
+    const running = vms.filter((v) => v.status === 'running').length;
+    return {
+      total: vms.length,
+      running,
+      stopped: vms.length - running,
+      allocatedVcpu: vms.reduce((s, v) => s + (v.maxcpu ?? 0), 0),
+      allocatedMemMB: Math.round(vms.reduce((s, v) => s + (v.maxmem ?? 0), 0) / (1024 * 1024)),
+    };
+  }
 }
