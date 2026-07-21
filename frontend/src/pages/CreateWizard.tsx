@@ -1,7 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router-dom';
-import { api } from '../api.js';
+import { api, type Template } from '../api.js';
+
+/** ordem alfabética pelo nome, com números naturais (kvm2 antes de kvm10) */
+const byName = (a: Template, b: Template) =>
+  (a.name ?? '').localeCompare(b.name ?? '', 'pt-BR', { numeric: true, sensitivity: 'base' });
 
 export function CreateWizard() {
   const nav = useNavigate();
@@ -23,7 +27,7 @@ export function CreateWizard() {
 
   useEffect(() => {
     if (templateId === '' && templates.data && templates.data.length > 0) {
-      const sorted = [...templates.data].sort((a, b) => b.vmid - a.vmid);
+      const sorted = [...templates.data].sort(byName);
       const last = Number(localStorage.getItem('o4p_last_template'));
       const pick = sorted.find((t) => t.vmid === last) ?? sorted[0];
       setTemplateId(pick.vmid);
@@ -68,7 +72,7 @@ export function CreateWizard() {
         <label>Template
           <select value={templateId} onChange={(e) => setTemplateId(e.target.value ? Number(e.target.value) : '')}>
             <option value="">selecione…</option>
-            {[...(templates.data ?? [])].sort((a, b) => b.vmid - a.vmid).map((t) => (
+            {[...(templates.data ?? [])].sort(byName).map((t) => (
               <option key={t.vmid} value={t.vmid}>{`#${t.vmid} — ${t.name}`}</option>
             ))}
           </select>

@@ -26,6 +26,13 @@ describe('CreateSimple', () => {
     expect(screen.getByText(/Sem descrição/)).toBeInTheDocument();
   });
 
+  it('lista os templates em ordem alfabética do nome', async () => {
+    const { container } = render(wrap(<CreateSimple />));
+    await screen.findByText('template-vm-v5');
+    const nomes = [...container.querySelectorAll('.tpl-name')].map((n) => n.textContent);
+    expect(nomes).toEqual(['residente-nhw-v3', 'template-vm-v5']);
+  });
+
   it('renderiza as notes do Proxmox como markdown (não texto cru)', async () => {
     render(wrap(<CreateSimple />));
     const bold = await screen.findByText('Base Debian');

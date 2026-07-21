@@ -3,7 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { api } from '../api.js';
+import { api, type Template } from '../api.js';
+
+/** ordem alfabética pelo nome, com números naturais (kvm2 antes de kvm10) */
+const byName = (a: Template, b: Template) =>
+  (a.name ?? '').localeCompare(b.name ?? '', 'pt-BR', { numeric: true, sensitivity: 'base' });
 
 export function CreateSimple() {
   const nav = useNavigate();
@@ -13,12 +17,12 @@ export function CreateSimple() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const sorted = [...(templates.data ?? [])].sort((a, b) => b.vmid - a.vmid);
+  const sorted = [...(templates.data ?? [])].sort(byName);
   const nameValid = /^[a-zA-Z0-9-]+$/.test(name);
 
   useEffect(() => {
     if (templateId === '' && templates.data && templates.data.length > 0) {
-      const ordered = [...templates.data].sort((a, b) => b.vmid - a.vmid);
+      const ordered = [...templates.data].sort(byName);
       const last = Number(localStorage.getItem('o4p_last_template'));
       setTemplateId((ordered.find((t) => t.vmid === last) ?? ordered[0]).vmid);
     }
