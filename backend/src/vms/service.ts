@@ -76,7 +76,9 @@ export class VmService {
     await this.waitTask(node, upid);
 
     const cfg: Record<string, string | number> = { tags: this.policy.clientTag };
-    if (input.cores) cfg.cores = input.cores;
+    // vCPU do form = total. Fixa sockets=1 para que "cores" seja o total de vCPU
+    // (senão herda sockets do template, ex.: 2 → o valor informado dobra).
+    if (input.cores) { cfg.cores = input.cores; cfg.sockets = 1; }
     if (input.memoryMB) cfg.memory = input.memoryMB;
     if (input.ciuser) cfg.ciuser = input.ciuser;
     if (input.cipassword) cfg.cipassword = input.cipassword;

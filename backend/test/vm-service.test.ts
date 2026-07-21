@@ -61,7 +61,7 @@ describe('VmService.create', () => {
     expect(client.post).toHaveBeenCalledWith('/nodes/n1/qemu/998/clone',
       expect.objectContaining({ newid: 103, name: 'novo', full: 1, storage: 'local-zfs' }));
     const putArgs = client.put.mock.calls.find((c: any[]) => c[0] === '/nodes/n1/qemu/103/config');
-    expect(putArgs[1]).toMatchObject({ tags: 'cliente', cores: 2, memory: 2048 });
+    expect(putArgs[1]).toMatchObject({ tags: 'cliente', cores: 2, sockets: 1, memory: 2048 });
   });
   it('rejeita clonar de um id que não é template', async () => {
     const svc = new VmService(fakeClient() as any, policy, 'local-zfs');

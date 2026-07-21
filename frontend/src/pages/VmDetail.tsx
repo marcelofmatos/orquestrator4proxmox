@@ -36,6 +36,17 @@ function Stat({ label, value }: { label: string; value: ReactNode }) {
   return <div className="stat"><b style={{ fontSize: '1.15rem' }}>{value}</b>{label}</div>;
 }
 
+function BarGauge({ label, pct, text }: { label: string; pct: number; text: string }) {
+  const p = Math.max(0, Math.min(100, pct));
+  const color = p > 85 ? 'var(--err)' : p > 60 ? '#f59e0b' : 'var(--run)';
+  return (
+    <div className="stat">
+      <b style={{ fontSize: '1.15rem' }}>{text}</b>{label}
+      <div className="gauge"><div className="gauge-fill" style={{ width: `${p}%`, background: color }} /></div>
+    </div>
+  );
+}
+
 export function VmDetail() {
   const { id } = useParams();
   const vmid = Number(id);
@@ -76,26 +87,34 @@ export function VmDetail() {
       {vm.isLoading && <p>Carregando…</p>}
       {vm.data && (
         <>
-          <h1>{name} <StatusBadge status={String(status)} /></h1>
-          <p style={{ color: '#8b97a7' }}>VMID {vmid} · node {vm.data.node}{vm.data.tags ? ` · tags: ${vm.data.tags}` : ''}</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <h1 style={{ margin: 0 }}>{name} <StatusBadge status={String(status)} /></h1>
+              <p style={{ color: '#8b97a7', margin: '.4rem 0 0' }}>VMID {vmid} · node {vm.data.node}{vm.data.tags ? ` · tags: ${vm.data.tags}` : ''}</p>
+            </div>
+            <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+              <button disabled={!!busy} onClick={() => act('start')}>Ligar</button>
+              <button disabled={!!busy} onClick={() => act('shutdown')} style={{ background: '#2d3746' }}>Encerrar (ACPI)</button>
+              <button disabled={!!busy} onClick={() => act('stop')} style={{ background: '#2d3746' }}>Forçar stop</button>
+              <button disabled={!!busy} onClick={() => act('reboot')} style={{ background: '#2d3746' }}>Reiniciar</button>
+              <Link to={`/vms/${vmid}/console`}><button>Console</button></Link>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', margin: '1.2rem 0' }}>
+            <BarGauge label="CPU em uso" pct={running && s.cpu != null ? s.cpu * 100 : 0}
+              text={running && s.cpu != null ? `${(s.cpu * 100).toFixed(1)}%` : '—'} />
+            <BarGauge label="RAM (uso / total)" pct={running && memMax ? (s.mem / memMax) * 100 : 0}
+              text={running ? `${fmtBytes(s.mem)} / ${fmtBytes(memMax)}` : fmtBytes(memMax)} />
+          </div>
 
           <div className="grid" style={{ padding: 0, margin: '1rem 0' }}>
             <Stat label="vCPU" value={cores} />
-            <Stat label="CPU em uso" value={running && s.cpu != null ? `${(s.cpu * 100).toFixed(1)}%` : '—'} />
-            <Stat label="RAM (uso / total)" value={running ? `${fmtBytes(s.mem)} / ${fmtBytes(memMax)}` : fmtBytes(memMax)} />
             <Stat label="Disco" value={diskInfo(c)} />
             <Stat label="Uptime" value={running ? fmtUptime(s.uptime) : '—'} />
             <Stat label="Sistema" value={c.ostype ?? '—'} />
             <Stat label="Rede" value={netInfo(c.net0)} />
             <Stat label="IP (cloud-init)" value={c.ipconfig0 ? String(c.ipconfig0).replace('ip=', '') : '—'} />
-          </div>
-
-          <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', margin: '1rem 0' }}>
-            <button disabled={!!busy} onClick={() => act('start')}>Ligar</button>
-            <button disabled={!!busy} onClick={() => act('shutdown')} style={{ background: '#2d3746' }}>Encerrar (ACPI)</button>
-            <button disabled={!!busy} onClick={() => act('stop')} style={{ background: '#2d3746' }}>Forçar stop</button>
-            <button disabled={!!busy} onClick={() => act('reboot')} style={{ background: '#2d3746' }}>Reiniciar</button>
-            <Link to={`/vms/${vmid}/console`}><button>Console</button></Link>
           </div>
 
           <details className="card" style={{ marginTop: '1rem' }}>
