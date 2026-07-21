@@ -122,4 +122,8 @@ export class VmService {
       allocatedMemMB: Math.round(vms.reduce((s, v) => s + (v.maxmem ?? 0), 0) / (1024 * 1024)),
     };
   }
+
+  async findVisibleNode(vmid: number): Promise<string> {
+    return (await this.findVisible(vmid)).node;
+  }
 }
