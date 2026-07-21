@@ -1,0 +1,15 @@
+:root { color-scheme: light dark; --bg:#0f1419; --card:#1a2029; --fg:#e6edf3; --accent:#3b82f6; --run:#22c55e; --stop:#64748b; --err:#ef4444; }
+* { box-sizing: border-box; } body { margin:0; font-family: system-ui, sans-serif; background:var(--bg); color:var(--fg); }
+.login { min-height:100vh; display:grid; place-items:center; }
+.card { background:var(--card); padding:2rem; border-radius:12px; display:flex; flex-direction:column; gap:1rem; min-width:320px; }
+.card label { display:flex; flex-direction:column; gap:.35rem; font-size:.9rem; }
+input, select, button { padding:.6rem .8rem; border-radius:8px; border:1px solid #2d3746; background:#0d1117; color:var(--fg); }
+button { background:var(--accent); border:none; cursor:pointer; font-weight:600; }
+button:disabled { opacity:.5; cursor:not-allowed; }
+.error { color:var(--err); }
+.topbar { display:flex; justify-content:space-between; align-items:center; padding:1rem 1.5rem; background:var(--card); }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:1rem; padding:1.5rem; }
+table { width:100%; border-collapse:collapse; } th,td { text-align:left; padding:.6rem; border-bottom:1px solid #2d3746; }
+.badge { padding:.15rem .5rem; border-radius:999px; font-size:.75rem; }
+.badge.running { background:var(--run); color:#04210f; } .badge.stopped { background:var(--stop); color:#fff; }
+.stat { background:var(--card); padding:1rem 1.25rem; border-radius:10px; } .stat b { font-size:1.6rem; display:block; }
