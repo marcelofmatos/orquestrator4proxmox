@@ -66,8 +66,9 @@ export function CreateSimple() {
                 checked={templateId === t.vmid}
                 onChange={() => setTemplateId(t.vmid)}
               />
-              <strong>{t.name}</strong>
-              <span className="tpl-id">#{t.vmid}</span>
+              <span className="tpl-head">
+                <span className="tpl-name">{t.name}</span> <span className="tpl-id">#{t.vmid}</span>
+              </span>
               <div className="tpl-desc md">
                 {/* notes do Proxmox são markdown; react-markdown escapa HTML embutido */}
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
