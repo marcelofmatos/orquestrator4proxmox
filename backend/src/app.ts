@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import cookie from '@fastify/cookie';
 import type { Config } from './config.js';
 import { registerAuthRoutes, type AuthenticateFn } from './routes/auth.js';
+import { registerVmRoutes } from './routes/vms.js';
 import type { VmService } from './vms/service.js';
 import { AppError } from './errors.js';
 
@@ -21,9 +22,8 @@ export function buildApp(cfg: Config, deps: AppDeps): FastifyInstance {
     reply.code(500).send({ error: 'erro interno' });
   });
 
-  app.register(async (instance) => {
-    await registerAuthRoutes(instance, cfg, deps.authenticate);
-  });
+  app.register(async (instance) => { await registerAuthRoutes(instance, cfg, deps.authenticate); });
+  app.register(async (instance) => { await registerVmRoutes(instance, cfg.jwtSecret, deps.vmService); });
 
   return app;
 }
