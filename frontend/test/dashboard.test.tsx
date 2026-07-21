@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { Dashboard } from '../src/pages/Dashboard.js';
@@ -13,7 +14,7 @@ vi.mock('../src/api.js', () => ({
     ]),
   },
 }));
-vi.mock('../src/auth.js', () => ({ useAuth: () => ({ user: { username: 'alice', groups: [] }, logout: vi.fn(), brand: 'orquestrator4proxmox' }) }));
+vi.mock('../src/auth.js', () => ({ useAuth: () => ({ user: { username: 'alice', groups: [] }, logout: vi.fn(), brand: 'orquestrator4proxmox', hostDomain: 'example.com' }) }));
 
 function wrap(ui: React.ReactNode) {
   return <QueryClientProvider client={new QueryClient()}><MemoryRouter>{ui}</MemoryRouter></QueryClientProvider>;
@@ -25,5 +26,11 @@ describe('Dashboard', () => {
     expect(await screen.findByText('c1')).toBeInTheDocument();
     expect(screen.getByText('c2')).toBeInTheDocument();
     expect(screen.getByText('Total')).toBeInTheDocument();
+  });
+  it('abre o modal SSH com o comando de acesso', async () => {
+    render(wrap(<Dashboard />));
+    await screen.findByText('c1');
+    await userEvent.click(screen.getAllByTitle('Acesso SSH')[0]);
+    expect(await screen.findByText(/ssh <usuário>@c1\.example\.com/)).toBeInTheDocument();
   });
 });

@@ -29,5 +29,5 @@ export const api = {
   templates: () => req<Template[]>('GET', '/api/templates'),
   dashboard: () => req<Dashboard>('GET', '/api/dashboard'),
   console: (id: number) => req<{ wsPath: string; password: string }>('GET', `/api/vms/${id}/console`),
-  config: () => req<{ brand: string }>('GET', '/api/config'),
+  config: () => req<{ brand: string; hostDomain: string }>('GET', '/api/config'),
 };

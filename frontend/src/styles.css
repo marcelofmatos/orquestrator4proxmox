@@ -22,3 +22,5 @@ table { width:100%; border-collapse:collapse; } th,td { text-align:left; padding
 .gauge { margin-top:.6rem; height:8px; background:#0d1117; border-radius:999px; overflow:hidden; }
 .gauge-fill { height:100%; border-radius:999px; transition:width .5s ease; }
 .stat .sub { opacity:.55; font-size:.9rem; font-weight:400; }
+.ssh-cmd { display:block; background:#0d1117; border:1px solid #2d3746; padding:.7rem .9rem; border-radius:8px; font-family:ui-monospace,monospace; font-size:.95rem; user-select:all; overflow-x:auto; white-space:nowrap; }
+.overlay .box h3 { font-size:1.05rem; }
