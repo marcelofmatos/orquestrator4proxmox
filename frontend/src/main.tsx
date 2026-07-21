@@ -8,6 +8,7 @@ import { Login } from './pages/Login.js';
 import { Dashboard } from './pages/Dashboard.js';
 import { VmDetail } from './pages/VmDetail.js';
 import { CreateWizard } from './pages/CreateWizard.js';
+import { CreateSimple } from './pages/CreateSimple.js';
 import { Console } from './pages/Console.js';
 import './styles.css';
 
@@ -25,7 +26,8 @@ createRoot(document.getElementById('root')!).render(
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/" element={<Protected><Dashboard /></Protected>} />
-            <Route path="/vms/new" element={<Protected><CreateWizard /></Protected>} />
+            <Route path="/vms/new" element={<Protected><CreateSimple /></Protected>} />
+            <Route path="/vms/new/avancado" element={<Protected><CreateWizard /></Protected>} />
             <Route path="/vms/:id" element={<Protected><VmDetail /></Protected>} />
             <Route path="/vms/:id/console" element={<Protected><Console /></Protected>} />
             <Route path="*" element={<Navigate to="/" replace />} />

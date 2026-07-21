@@ -98,9 +98,20 @@ export class VmService {
   }
 
   async listTemplates() {
-    return (await this.resources())
-      .filter((v) => v.template === 1)
-      .map((v) => ({ vmid: v.vmid, name: v.name, node: v.node, tags: v.tags }));
+    const templates = (await this.resources()).filter((v) => v.template === 1);
+    // a "nota" do Proxmox fica no campo `description` da config da VM
+    return Promise.all(templates.map(async (v) => {
+      const cfg = await this.px
+        .get<Record<string, unknown>>(`/nodes/${v.node}/qemu/${v.vmid}/config`)
+        .catch(() => ({} as Record<string, unknown>));
+      return {
+        vmid: v.vmid,
+        name: v.name,
+        node: v.node,
+        tags: v.tags,
+        description: typeof cfg?.description === 'string' ? cfg.description : '',
+      };
+    }));
   }
 
   async meta() {

@@ -24,3 +24,12 @@ table { width:100%; border-collapse:collapse; } th,td { text-align:left; padding
 .stat .sub { opacity:.55; font-size:.9rem; font-weight:400; }
 .ssh-cmd { display:block; background:#0d1117; border:1px solid #2d3746; padding:.7rem .9rem; border-radius:8px; font-family:ui-monospace,monospace; font-size:.95rem; user-select:all; overflow-x:auto; white-space:nowrap; }
 .overlay .box h3 { font-size:1.05rem; }
+.tpl-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:1rem; }
+.tpl-card { display:flex; flex-direction:column; align-items:flex-start; gap:.35rem; text-align:left; width:100%;
+  background:var(--card); border:2px solid #2d3746; border-radius:12px; padding:1.1rem 1.2rem; cursor:pointer;
+  color:var(--fg); font-weight:400; transition:border-color .15s, transform .15s; }
+.tpl-card:hover { border-color:#3f4c5f; transform:translateY(-2px); }
+.tpl-card.selected { border-color:var(--accent); box-shadow:0 0 0 3px rgba(59,130,246,.18); }
+.tpl-card strong { font-size:1.05rem; }
+.tpl-card .tpl-id { font-size:.8rem; opacity:.5; }
+.tpl-card .tpl-desc { margin:.3rem 0 0; font-size:.9rem; opacity:.75; white-space:pre-wrap; }

@@ -60,7 +60,10 @@ export function CreateWizard() {
           <span className="spinner lg" /> Criando a VM… isso pode levar alguns segundos.
         </div></div>
       )}
-      <h1>Nova VM (clone)</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '1rem' }}>
+        <h1>Nova VM (avançado)</h1>
+        <Link to="/vms/new">← modo simples</Link>
+      </div>
       <form onSubmit={submit} className="card">
         <label>Template
           <select value={templateId} onChange={(e) => setTemplateId(e.target.value ? Number(e.target.value) : '')}>
