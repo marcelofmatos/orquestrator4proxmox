@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../auth.js';
 
 export function Login() {
-  const { login } = useAuth();
+  const { user, login } = useAuth();
   const [username, setU] = useState('');
   const [password, setP] = useState('');
   const [error, setError] = useState('');
@@ -13,6 +14,8 @@ export function Login() {
     catch (err) { setError((err as Error).message || 'falha no login'); }
     finally { setBusy(false); }
   };
+  // já autenticado (ou logou agora) → sai da tela de login
+  if (user) return <Navigate to="/" replace />;
   return (
     <div className="login">
       <form onSubmit={onSubmit} className="card">
