@@ -24,7 +24,8 @@ export function Dashboard() {
   const vms = useQuery({ queryKey: ['vms'], queryFn: api.vms });
   const [sshVm, setSshVm] = useState<Vm | null>(null);
   const [copied, setCopied] = useState(false);
-  const sshCmd = sshVm ? `ssh <usuário>@${sshVm.name}.${hostDomain || '<HOST_DOMAIN>'}` : '';
+  const sshUser = user?.username || '<usuário>';
+  const sshCmd = sshVm ? `ssh ${sshUser}@${sshVm.name}.${hostDomain || '<HOST_DOMAIN>'}` : '';
 
   return (
     <div>

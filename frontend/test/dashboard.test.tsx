@@ -31,6 +31,6 @@ describe('Dashboard', () => {
     render(wrap(<Dashboard />));
     await screen.findByText('c1');
     await userEvent.click(screen.getAllByTitle('Acesso SSH')[0]);
-    expect(await screen.findByText(/ssh <usuário>@c1\.example\.com/)).toBeInTheDocument();
+    expect(await screen.findByText(/ssh alice@c1\.example\.com/)).toBeInTheDocument();
   });
 });
