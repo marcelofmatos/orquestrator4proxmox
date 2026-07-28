@@ -6,7 +6,12 @@ import { makeAuthHook } from '../auth/middleware.js';
 const idParam = z.object({ id: z.coerce.number().int().positive() });
 const createBody = z.object({
   templateId: z.number().int().positive(),
-  name: z.string().min(1).max(63).regex(/^[a-zA-Z0-9-]+$/, 'use letras, números e hífen'),
+  // nome de host compatível com DNS (RFC 1123): minúsculas, dígitos e hífen,
+  // sem espaços, sem começar/terminar com hífen, 1–63 caracteres.
+  name: z.string().regex(
+    /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/,
+    'nome inválido: apenas minúsculas, números e hífen (sem espaços; não pode começar/terminar com hífen)',
+  ),
   cores: z.number().int().positive().optional(),
   memoryMB: z.number().int().positive().optional(),
   diskGB: z.number().int().positive().optional(),

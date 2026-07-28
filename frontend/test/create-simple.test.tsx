@@ -46,8 +46,8 @@ describe('CreateSimple', () => {
     render(wrap(<CreateSimple />));
     await screen.findByText('template-vm-v5');
     await userEvent.click(screen.getByText('residente-nhw-v3'));
-    await userEvent.type(screen.getByLabelText('Nome da VM'), 'clienteX');
+    await userEvent.type(screen.getByLabelText(/nome da vm/i), 'clientex');
     await userEvent.click(screen.getByRole('button', { name: /criar vm/i }));
-    expect(api.create).toHaveBeenCalledWith(expect.objectContaining({ templateId: 901, name: 'clienteX', start: true }));
+    expect(api.create).toHaveBeenCalledWith(expect.objectContaining({ templateId: 901, name: 'clientex', start: true }));
   });
 });

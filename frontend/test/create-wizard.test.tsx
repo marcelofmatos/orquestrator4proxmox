@@ -21,8 +21,8 @@ describe('CreateWizard', () => {
     const { api } = await import('../src/api.js');
     render(wrap(<CreateWizard />));
     await screen.findByText(/template-vm-v2/);
-    await userEvent.type(screen.getByLabelText('Nome'), 'clienteX');
+    await userEvent.type(screen.getByLabelText(/nome /i), 'clientex');
     await userEvent.click(screen.getByRole('button', { name: /criar/i }));
-    expect(api.create).toHaveBeenCalledWith(expect.objectContaining({ templateId: 998, name: 'clienteX' }));
+    expect(api.create).toHaveBeenCalledWith(expect.objectContaining({ templateId: 998, name: 'clientex' }));
   });
 });

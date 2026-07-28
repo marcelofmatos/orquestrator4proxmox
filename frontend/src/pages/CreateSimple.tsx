@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { api, type Template } from '../api.js';
+import { isValidHostname, normalizeHostname, HOSTNAME_HINT } from '../hostname.js';
 
 /** ordem alfabética pelo nome, com números naturais (kvm2 antes de kvm10) */
 const byName = (a: Template, b: Template) =>
@@ -18,7 +19,7 @@ export function CreateSimple() {
   const [error, setError] = useState('');
 
   const sorted = [...(templates.data ?? [])].sort(byName);
-  const nameValid = /^[a-zA-Z0-9-]+$/.test(name);
+  const nameValid = isValidHostname(name);
 
   useEffect(() => {
     if (templateId === '' && templates.data && templates.data.length > 0) {
@@ -86,10 +87,10 @@ export function CreateSimple() {
         {templates.data?.length === 0 && <p>Nenhum template disponível no Proxmox.</p>}
 
         <div className="card" style={{ marginTop: '1.2rem' }}>
-          <label>Nome da VM
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="letras, números e hífen" autoFocus />
+          <label>Nome da VM (hostname)
+            <input value={name} onChange={(e) => setName(normalizeHostname(e.target.value))} placeholder="ex.: cliente-web-01" autoFocus />
           </label>
-          {name && !nameValid && <p className="error">Nome inválido: use apenas letras, números e hífen.</p>}
+          {name && !nameValid && <p className="error">Nome inválido: {HOSTNAME_HINT}.</p>}
           {error && <p className="error">{error}</p>}
           <button disabled={busy || templateId === '' || !nameValid}>
             {busy ? <><span className="spinner" /> Criando…</> : 'Criar VM'}

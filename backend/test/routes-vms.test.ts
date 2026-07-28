@@ -62,6 +62,17 @@ describe('rotas de VM', () => {
     expect(r.json().vmid).toBe(103);
     await app.close();
   });
+  it('rejeita nome não-DNS (maiúscula, espaço ou hífen nas pontas) com 400', async () => {
+    const svc = fakeVmService();
+    const app = buildApp(cfg(), { authenticate: vi.fn() as any, vmService: svc as any });
+    for (const name of ['ClienteX', 'cli ente', '-cliente', 'cliente-']) {
+      const r = await app.inject({ method: 'POST', url: '/api/vms', cookies: authCookie(),
+        payload: { templateId: 998, name, start: false } });
+      expect(r.statusCode, `nome "${name}"`).toBe(400);
+    }
+    expect(svc.create).not.toHaveBeenCalled();
+    await app.close();
+  });
   it('rejeita IP estático malicioso (injeção em ipconfig0) com 400', async () => {
     const svc = fakeVmService();
     const app = buildApp(cfg(), { authenticate: vi.fn() as any, vmService: svc as any });

@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router-dom';
 import { api, type Template } from '../api.js';
+import { isValidHostname, normalizeHostname, HOSTNAME_HINT } from '../hostname.js';
 
 /** ordem alfabética pelo nome, com números naturais (kvm2 antes de kvm10) */
 const byName = (a: Template, b: Template) =>
@@ -34,7 +35,7 @@ export function CreateWizard() {
     }
   }, [templates.data]);
 
-  const nameValid = /^[a-zA-Z0-9-]+$/.test(name);
+  const nameValid = isValidHostname(name);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -77,10 +78,10 @@ export function CreateWizard() {
             ))}
           </select>
         </label>
-        <label>Nome
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="letras, números e hífen" />
+        <label>Nome (hostname)
+          <input value={name} onChange={(e) => setName(normalizeHostname(e.target.value))} placeholder="ex.: cliente-web-01" />
         </label>
-        {name && !nameValid && <p className="error">Nome inválido: use apenas letras, números e hífen.</p>}
+        {name && !nameValid && <p className="error">Nome inválido: {HOSTNAME_HINT}.</p>}
         <div style={{ display: 'flex', gap: '.75rem' }}>
           <label style={{ flex: 1 }}>vCPU<input value={cores} onChange={(e) => setCores(e.target.value)} type="number" min="1" placeholder="padrão do template" /></label>
           <label style={{ flex: 1 }}>RAM (MB)<input value={memoryMB} onChange={(e) => setMemoryMB(e.target.value)} type="number" min="256" placeholder="padrão" /></label>
