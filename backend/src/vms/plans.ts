@@ -44,3 +44,12 @@ export function parsePlans(description: string | undefined | null): Record<strin
   }
   return plans;
 }
+
+/**
+ * Remove o bloco `<!-- o4p-plans ... -->` do Notes para exibição (o card do painel
+ * mostra só a descrição humana; os planos vão separados no campo `plans`).
+ */
+export function stripPlansBlock(description: string | undefined | null): string {
+  if (!description) return '';
+  return description.replace(BLOCK, '').replace(/\n{3,}/g, '\n\n').trim();
+}

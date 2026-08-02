@@ -111,13 +111,15 @@ describe('VmService.listTemplates / meta / dashboard', () => {
     const svc = new VmService(fakeClient() as any, policy, 'local-zfs');
     expect((await svc.listTemplates()).map((t) => t.vmid)).not.toContain(997);
   });
-  it('listTemplates expõe os planos definidos no Notes do template', async () => {
+  it('listTemplates expõe os planos e NÃO vaza o bloco no description', async () => {
     const svc = new VmService(fakeClient() as any, policy, 'local-zfs');
     const t = (await svc.listTemplates()).find((x) => x.vmid === 998);
     expect(t?.plans).toEqual({
       padrao: { cores: 4, memoryMB: 8192, homeGB: 80 },
       extendido: { cores: 8, memoryMB: 16384, homeGB: 180 },
     });
+    expect(t?.description).not.toContain('o4p-plans');
+    expect(t?.description).toContain('# Template');
   });
   it('meta retorna nodes distintos e o storage alvo', async () => {
     const svc = new VmService(fakeClient() as any, policy, 'local-zfs');

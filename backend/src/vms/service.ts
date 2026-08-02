@@ -2,7 +2,7 @@ import type { ProxmoxClient } from '../proxmox/client.js';
 import type { ClusterVm, TaskStatus } from '../proxmox/types.js';
 import { NotFoundError, ProxmoxError } from '../errors.js';
 import { filterVisible, isClientVisible, parseTags, type TagPolicy } from './visibility.js';
-import { parsePlans, type Plan } from './plans.js';
+import { parsePlans, stripPlansBlock, type Plan } from './plans.js';
 
 export interface CreateVmInput {
   templateId: number; name: string; plan?: string;
@@ -147,15 +147,16 @@ export class VmService {
       const cfg = await this.px
         .get<Record<string, unknown>>(`/nodes/${v.node}/qemu/${v.vmid}/config`)
         .catch(() => ({} as Record<string, unknown>));
-      const description = typeof cfg?.description === 'string' ? cfg.description : '';
+      const raw = typeof cfg?.description === 'string' ? cfg.description : '';
       return {
         vmid: v.vmid,
         name: v.name,
         node: v.node,
         tags: v.tags,
-        description,
+        // description SEM o bloco de planos (não vaza no card); planos vêm em `plans`.
+        description: stripPlansBlock(raw),
         // planos disponíveis vêm do Notes do template (sem banco). {} = sem planos.
-        plans: parsePlans(description),
+        plans: parsePlans(raw),
       };
     }));
   }
