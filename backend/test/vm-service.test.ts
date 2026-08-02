@@ -17,6 +17,12 @@ function fakeClient(over: Partial<Record<string, any>> = {}) {
       if (path === '/cluster/resources?type=node') return [{ maxcpu: 80, maxmem: 68719476736 }];
       if (path === '/cluster/nextid') return '103';
       if (path.endsWith('/status/current')) return { status: 'running' };
+      // config do template 998: carrega os planos (Notes) e o disco de dados (scsi2)
+      if (path === '/nodes/n1/qemu/998/config') return {
+        cores: 2, memory: '4096',
+        scsi2: 'local-zfs:base-998-disk-2,size=80G',
+        description: '# Template\n<!-- o4p-plans\npadrao=cores:4,memoryMB:8192,homeGB:80\nextendido=cores:8,memoryMB:16384,homeGB:180\n-->',
+      };
       if (path.endsWith('/config')) return { cores: 2, memory: '4096' };
       if (path.includes('/tasks/')) return { status: 'stopped', exitstatus: 'OK' };
       return {};
@@ -64,6 +70,28 @@ describe('VmService.create', () => {
     const putArgs = client.put.mock.calls.find((c: any[]) => c[0] === '/nodes/n1/qemu/103/config');
     expect(putArgs[1]).toMatchObject({ tags: 'cliente', cores: 2, sockets: 1, memory: 2048 });
   });
+  it('aplica o plano extendido (cores/RAM do plano + resize do scsi2)', async () => {
+    const client = fakeClient();
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    await svc.create({ templateId: 998, name: 'grande', plan: 'extendido', start: false });
+    const putCfg = client.put.mock.calls.find((c: any[]) => c[0] === '/nodes/n1/qemu/103/config');
+    expect(putCfg[1]).toMatchObject({ tags: 'cliente', cores: 8, sockets: 1, memory: 16384 });
+    expect(client.put).toHaveBeenCalledWith('/nodes/n1/qemu/103/resize',
+      { disk: 'scsi2', size: '180G' });
+  });
+  it('plano padrão não redimensiona (homeGB = base do template)', async () => {
+    const client = fakeClient();
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    await svc.create({ templateId: 998, name: 'pequena', plan: 'padrao', start: false });
+    const putCfg = client.put.mock.calls.find((c: any[]) => c[0] === '/nodes/n1/qemu/103/config');
+    expect(putCfg[1]).toMatchObject({ cores: 4, memory: 8192 });
+    expect(client.put.mock.calls.some((c: any[]) => c[0] === '/nodes/n1/qemu/103/resize')).toBe(false);
+  });
+  it('plano inexistente no template lança NotFound', async () => {
+    const svc = new VmService(fakeClient() as any, policy, 'local-zfs');
+    await expect(svc.create({ templateId: 998, name: 'x', plan: 'gigante', start: false }))
+      .rejects.toBeInstanceOf(NotFoundError);
+  });
   it('rejeita clonar de template com tag oculta', async () => {
     const svc = new VmService(fakeClient() as any, policy, 'local-zfs');
     await expect(svc.create({ templateId: 997, name: 'x', start: false })).rejects.toBeInstanceOf(NotFoundError);
@@ -82,6 +110,14 @@ describe('VmService.listTemplates / meta / dashboard', () => {
   it('listTemplates esconde template com tag oculta (mgmt/infra)', async () => {
     const svc = new VmService(fakeClient() as any, policy, 'local-zfs');
     expect((await svc.listTemplates()).map((t) => t.vmid)).not.toContain(997);
+  });
+  it('listTemplates expõe os planos definidos no Notes do template', async () => {
+    const svc = new VmService(fakeClient() as any, policy, 'local-zfs');
+    const t = (await svc.listTemplates()).find((x) => x.vmid === 998);
+    expect(t?.plans).toEqual({
+      padrao: { cores: 4, memoryMB: 8192, homeGB: 80 },
+      extendido: { cores: 8, memoryMB: 16384, homeGB: 180 },
+    });
   });
   it('meta retorna nodes distintos e o storage alvo', async () => {
     const svc = new VmService(fakeClient() as any, policy, 'local-zfs');

@@ -2,9 +2,11 @@ import type { ProxmoxClient } from '../proxmox/client.js';
 import type { ClusterVm, TaskStatus } from '../proxmox/types.js';
 import { NotFoundError, ProxmoxError } from '../errors.js';
 import { filterVisible, isClientVisible, parseTags, type TagPolicy } from './visibility.js';
+import { parsePlans, type Plan } from './plans.js';
 
 export interface CreateVmInput {
-  templateId: number; name: string; cores?: number; memoryMB?: number; diskGB?: number;
+  templateId: number; name: string; plan?: string;
+  cores?: number; memoryMB?: number; diskGB?: number;
   net?: { mode: 'dhcp' } | { mode: 'static'; ip: string; gateway?: string };
   ciuser?: string; cipassword?: string; sshkey?: string; start?: boolean;
 }
@@ -14,7 +16,20 @@ export class VmService {
     private readonly px: ProxmoxClient,
     private readonly policy: TagPolicy,
     private readonly targetStorage: string,
+    // disco de DADOS do residente (/home). Único disco que muda por plano; o
+    // Proxmox só cresce, então só redimensiona quando o plano pede mais que o base.
+    private readonly dataDisk = 'scsi2',
   ) {}
+
+  /** Tamanho (GiB) de um disco a partir da config da VM (ex.: "…,size=80G"). */
+  private diskSizeGB(cfg: Record<string, unknown>, disk: string): number | undefined {
+    const v = cfg[disk];
+    if (typeof v !== 'string') return undefined;
+    const m = /(?:^|,)size=(\d+(?:\.\d+)?)([KMGT])/i.exec(v);
+    if (!m) return undefined;
+    const mult: Record<string, number> = { K: 1 / (1024 * 1024), M: 1 / 1024, G: 1, T: 1024 };
+    return parseFloat(m[1]) * (mult[m[2].toUpperCase()] ?? 1);
+  }
 
   private resources(): Promise<ClusterVm[]> {
     return this.px.get<ClusterVm[]>('/cluster/resources?type=vm');
@@ -69,18 +84,33 @@ export class VmService {
     // mesma fronteira da listagem: template oculto (mgmt/infra) não pode ser clonado
     if (!tpl || !this.isOfferableTemplate(tpl)) throw new NotFoundError('template não encontrado');
     const node = tpl.node;
-    const newid = parseInt(await this.px.get<string>('/cluster/nextid'), 10);
 
+    // config do template = fonte dos PLANOS (bloco no Notes) e do tamanho-base do
+    // disco de dados. Sem banco: o estado dos planos vive no próprio Proxmox.
+    const tplCfg = await this.px.get<Record<string, unknown>>(
+      `/nodes/${node}/qemu/${input.templateId}/config`);
+    const plans = parsePlans(typeof tplCfg.description === 'string' ? tplCfg.description : '');
+    let plan: Plan | undefined;
+    if (input.plan) {
+      plan = plans[input.plan];
+      if (!plan) throw new NotFoundError(`plano '${input.plan}' não definido no template`);
+    }
+    // campos avulsos (uso avançado) sobrepõem o plano; senão o plano manda.
+    const cores = input.cores ?? plan?.cores;
+    const memoryMB = input.memoryMB ?? plan?.memoryMB;
+    const homeGB = input.diskGB ?? plan?.homeGB;
+
+    const newid = parseInt(await this.px.get<string>('/cluster/nextid'), 10);
     const upid = await this.px.post<string>(`/nodes/${node}/qemu/${input.templateId}/clone`, {
       newid, name: input.name, full: 1, storage: this.targetStorage,
     });
     await this.waitTask(node, upid);
 
     const cfg: Record<string, string | number> = { tags: this.policy.clientTag };
-    // vCPU do form = total. Fixa sockets=1 para que "cores" seja o total de vCPU
+    // vCPU = total. Fixa sockets=1 para que "cores" seja o total de vCPU
     // (senão herda sockets do template, ex.: 2 → o valor informado dobra).
-    if (input.cores) { cfg.cores = input.cores; cfg.sockets = 1; }
-    if (input.memoryMB) cfg.memory = input.memoryMB;
+    if (cores) { cfg.cores = cores; cfg.sockets = 1; }
+    if (memoryMB) cfg.memory = memoryMB;
     if (input.ciuser) cfg.ciuser = input.ciuser;
     if (input.cipassword) cfg.cipassword = input.cipassword;
     if (input.sshkey) cfg.sshkeys = encodeURIComponent(input.sshkey);
@@ -91,8 +121,15 @@ export class VmService {
     }
     await this.px.put(`/nodes/${node}/qemu/${newid}/config`, cfg);
 
-    if (input.diskGB) {
-      await this.px.put(`/nodes/${node}/qemu/${newid}/resize`, { disk: 'scsi0', size: `${input.diskGB}G` });
+    // cresce o disco de dados (/home = scsi2) para o tamanho do plano. O Proxmox
+    // só cresce; redimensiona apenas quando o alvo é maior que o base do template
+    // (ex.: plano "padrao" = tamanho-base → nada a fazer).
+    if (homeGB) {
+      const base = this.diskSizeGB(tplCfg, this.dataDisk) ?? 0;
+      if (homeGB > base) {
+        await this.px.put(`/nodes/${node}/qemu/${newid}/resize`,
+          { disk: this.dataDisk, size: `${homeGB}G` });
+      }
     }
     if (input.start) await this.px.post(`/nodes/${node}/qemu/${newid}/status/start`);
     return { vmid: newid, node };
@@ -110,12 +147,15 @@ export class VmService {
       const cfg = await this.px
         .get<Record<string, unknown>>(`/nodes/${v.node}/qemu/${v.vmid}/config`)
         .catch(() => ({} as Record<string, unknown>));
+      const description = typeof cfg?.description === 'string' ? cfg.description : '';
       return {
         vmid: v.vmid,
         name: v.name,
         node: v.node,
         tags: v.tags,
-        description: typeof cfg?.description === 'string' ? cfg.description : '',
+        description,
+        // planos disponíveis vêm do Notes do template (sem banco). {} = sem planos.
+        plans: parsePlans(description),
       };
     }));
   }

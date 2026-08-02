@@ -15,11 +15,14 @@ export function CreateSimple() {
   const templates = useQuery({ queryKey: ['templates'], queryFn: api.templates });
   const [templateId, setTemplateId] = useState<number | ''>('');
   const [name, setName] = useState('');
+  const [plan, setPlan] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
   const sorted = [...(templates.data ?? [])].sort(byName);
   const nameValid = isValidHostname(name);
+  const selected = sorted.find((t) => t.vmid === templateId);
+  const planNames = Object.keys(selected?.plans ?? {});
 
   useEffect(() => {
     if (templateId === '' && templates.data && templates.data.length > 0) {
@@ -29,12 +32,17 @@ export function CreateSimple() {
     }
   }, [templates.data]);
 
+  // ao trocar de template, seleciona o 1º plano dele (ou nenhum, se o template não tiver planos)
+  useEffect(() => {
+    setPlan((cur) => (planNames.includes(cur) ? cur : (planNames[0] ?? '')));
+  }, [templateId, templates.data]);
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (templateId === '' || !nameValid) return;
     setBusy(true); setError('');
     try {
-      const r = await api.create({ templateId: Number(templateId), name, start: true });
+      const r = await api.create({ templateId: Number(templateId), name, plan: plan || undefined, start: true });
       localStorage.setItem('o4p_last_template', String(templateId));
       nav(`/vms/${r.vmid}`);
     } catch (err) {
@@ -85,6 +93,33 @@ export function CreateSimple() {
         </div>
         {templates.isLoading && <p>Carregando modelos…</p>}
         {templates.data?.length === 0 && <p>Nenhum template disponível no Proxmox.</p>}
+
+        {planNames.length > 0 && (
+          <div className="card" style={{ marginTop: '1.2rem' }}>
+            <label style={{ marginBottom: '.4rem', display: 'block' }}>Plano (recursos)</label>
+            <div className="tpl-grid">
+              {planNames.map((pn) => {
+                const p = selected!.plans![pn];
+                return (
+                  <label key={pn} className={`tpl-card${plan === pn ? ' selected' : ''}`}>
+                    <input
+                      type="radio"
+                      name="plan"
+                      className="sr-only"
+                      value={pn}
+                      checked={plan === pn}
+                      onChange={() => setPlan(pn)}
+                    />
+                    <span className="tpl-head"><span className="tpl-name">{pn}</span></span>
+                    <div className="tpl-desc">
+                      {p.cores} vCPU · {Math.round(p.memoryMB / 1024)} GB RAM · {p.homeGB} GB disco
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="card" style={{ marginTop: '1.2rem' }}>
           <label>Nome da VM (hostname)

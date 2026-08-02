@@ -12,6 +12,8 @@ const createBody = z.object({
     /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/,
     'nome inválido: apenas minúsculas, números e hífen (sem espaços; não pode começar/terminar com hífen)',
   ),
+  // nome do plano (definido no Notes do template). Determina cores/RAM/disco.
+  plan: z.string().min(1).max(32).optional(),
   cores: z.number().int().positive().optional(),
   memoryMB: z.number().int().positive().optional(),
   diskGB: z.number().int().positive().optional(),

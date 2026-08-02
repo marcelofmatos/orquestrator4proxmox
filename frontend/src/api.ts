@@ -13,7 +13,8 @@ async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
 }
 
 export interface Vm { vmid: number; name?: string; status: string; node: string; tags?: string; maxcpu?: number; maxmem?: number; uptime?: number; }
-export interface Template { vmid: number; name?: string; node: string; tags?: string; description?: string; }
+export interface Plan { cores: number; memoryMB: number; homeGB: number; }
+export interface Template { vmid: number; name?: string; node: string; tags?: string; description?: string; plans?: Record<string, Plan>; }
 export interface Dashboard { total: number; running: number; stopped: number; allocatedVcpu: number; allocatedMemMB: number; totalVcpu: number; totalMemMB: number; }
 export interface Me { username: string; groups: string[]; }
 
