@@ -6,15 +6,15 @@ const NOTES = `# Residente NHW
 Chat corporativo pronto para uso.
 
 <!-- o4p-plans
-padrao=cores:4,memoryMB:8192,homeGB:80
-extendido=cores:8,memoryMB:16384,homeGB:180
+padrao=cores:4,memoryMB:8192,homeGB:80,label:Padrão,desc:Equipes pequenas e provas de conceito
+extendido=cores:8,memoryMB:16384,homeGB:180,label:Estendido,desc:Equipes grandes, vários agentes simultâneos
 -->`;
 
 describe('parsePlans', () => {
-  it('extrai os planos do bloco o4p-plans no Notes', () => {
+  it('extrai planos com label e desc (desc pode ter vírgula)', () => {
     expect(parsePlans(NOTES)).toEqual({
-      padrao: { cores: 4, memoryMB: 8192, homeGB: 80 },
-      extendido: { cores: 8, memoryMB: 16384, homeGB: 180 },
+      padrao: { label: 'Padrão', desc: 'Equipes pequenas e provas de conceito', cores: 4, memoryMB: 8192, homeGB: 80 },
+      extendido: { label: 'Estendido', desc: 'Equipes grandes, vários agentes simultâneos', cores: 8, memoryMB: 16384, homeGB: 180 },
     });
   });
 

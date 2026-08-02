@@ -10,6 +10,8 @@
 // Cada linha é `nome=chave:valor,chave:valor` com as chaves cores/memoryMB/homeGB.
 
 export interface Plan {
+  label?: string;   // rótulo de exibição (ex.: "Padrão"); default = o nome-chave
+  desc?: string;    // descrição curta do plano (ex.: "Equipes pequenas e PoC")
   cores: number;
   memoryMB: number;
   homeGB: number;
@@ -32,14 +34,20 @@ export function parsePlans(description: string | undefined | null): Record<strin
     const name = line.slice(0, eq).trim();
     if (!name) continue;
 
+    // `desc` é o ÚLTIMO campo e pode conter vírgulas (texto livre) → separa em ",desc:".
+    const [kvPart, ...descRest] = line.slice(eq + 1).split(/,?\s*desc:/);
+    const desc = descRest.join('desc:').trim() || undefined;
+
+    let label: string | undefined;
     const kv: Record<string, number> = {};
-    for (const pair of line.slice(eq + 1).split(',')) {
+    for (const pair of kvPart.split(',')) {
       const [k, v] = pair.split(':').map((s) => s.trim());
+      if (k === 'label') { if (v) label = v; continue; }
       const n = Number(v);
       if (k && Number.isFinite(n) && n > 0) kv[k] = n;
     }
     if (kv.cores && kv.memoryMB && kv.homeGB) {
-      plans[name] = { cores: kv.cores, memoryMB: kv.memoryMB, homeGB: kv.homeGB };
+      plans[name] = { label, desc, cores: kv.cores, memoryMB: kv.memoryMB, homeGB: kv.homeGB };
     }
   }
   return plans;

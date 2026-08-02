@@ -110,9 +110,12 @@ export function CreateSimple() {
                       checked={plan === pn}
                       onChange={() => setPlan(pn)}
                     />
-                    <span className="tpl-head"><span className="tpl-name">{pn}</span></span>
+                    <span className="tpl-head"><span className="tpl-name">{p.label || pn}</span></span>
                     <div className="tpl-desc">
-                      {p.cores} vCPU · {Math.round(p.memoryMB / 1024)} GB RAM · {p.homeGB} GB disco
+                      {p.desc && <div>{p.desc}</div>}
+                      <div style={{ color: '#8b97a7', marginTop: p.desc ? '.35rem' : 0 }}>
+                        {p.cores} vCPU · {Math.round(p.memoryMB / 1024)} GB RAM · {p.homeGB} GB disco
+                      </div>
                     </div>
                   </label>
                 );
