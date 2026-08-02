@@ -54,7 +54,7 @@ export function CreateSimple() {
 
   return (
     <div style={{ maxWidth: 900, margin: '2rem auto', padding: '0 1rem' }}>
-      <Link to="/">← voltar</Link>
+      <Link to="/" className="navlink">← voltar</Link>
       {busy && (
         <div className="overlay"><div className="box">
           <span className="spinner lg" /> Criando a VM… isso pode levar alguns segundos.
@@ -63,7 +63,7 @@ export function CreateSimple() {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '1rem' }}>
         <h1 style={{ margin: '.4rem 0' }}>Nova VM</h1>
-        <Link to="/vms/new/avancado">Criação avançada →</Link>
+        <Link to="/vms/new/avancado" className="ghost-btn">Criação avançada →</Link>
       </div>
       <p style={{ color: '#8b97a7', marginTop: 0 }}>Escolha um modelo e dê um nome à VM.</p>
 

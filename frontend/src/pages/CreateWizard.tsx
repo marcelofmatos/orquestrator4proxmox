@@ -59,7 +59,7 @@ export function CreateWizard() {
 
   return (
     <div style={{ maxWidth: 620, margin: '2rem auto', padding: '0 1rem' }}>
-      <Link to="/">← voltar</Link>
+      <Link to="/" className="navlink">← voltar</Link>
       {busy && (
         <div className="overlay"><div className="box">
           <span className="spinner lg" /> Criando a VM… isso pode levar alguns segundos.
@@ -67,7 +67,7 @@ export function CreateWizard() {
       )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '1rem' }}>
         <h1>Nova VM (avançado)</h1>
-        <Link to="/vms/new">← modo simples</Link>
+        <Link to="/vms/new" className="ghost-btn">← modo simples</Link>
       </div>
       <form onSubmit={submit} className="card">
         <label>Template

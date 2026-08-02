@@ -31,7 +31,7 @@ export function Console() {
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <div className="topbar">
-        <Link to={`/vms/${vmid}`}>← voltar</Link>
+        <Link to={`/vms/${vmid}`} className="navlink">← voltar</Link>
         <span>Console VM #{vmid} — {state}{msg && `: ${msg}`}</span>
       </div>
       <div ref={screenRef} style={{ flex: 1, background: '#000' }} />

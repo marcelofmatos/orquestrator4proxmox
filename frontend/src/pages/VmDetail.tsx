@@ -80,7 +80,7 @@ export function VmDetail() {
 
   return (
     <div style={{ maxWidth: 900, margin: '2rem auto', padding: '0 1rem' }}>
-      <Link to="/">← voltar</Link>
+      <Link to="/" className="navlink">← voltar</Link>
       {busy && (
         <div className="overlay"><div className="box">
           <span className="spinner lg" /> {busy === 'delete' ? 'Excluindo a VM…' : 'Aplicando…'}

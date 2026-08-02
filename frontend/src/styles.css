@@ -51,3 +51,18 @@ table { width:100%; border-collapse:collapse; } th,td { text-align:left; padding
 .md img { max-width:100%; }
 .notes-card { background:var(--card); border-radius:10px; padding:1rem 1.25rem; margin-top:1rem; }
 .notes-card h3 { margin:0 0 .5rem; font-size:.78rem; font-weight:600; letter-spacing:.02em; opacity:.5; text-transform:uppercase; }
+
+/* links: sem o roxo/sublinhado cru do browser */
+a { color:var(--accent); text-decoration:none; }
+a:hover { text-decoration:underline; }
+
+/* link de navegação sutil (ex.: "← voltar") */
+.navlink { display:inline-flex; align-items:center; gap:.35rem; color:#9aa7b6; font-weight:500;
+  padding:.4rem .6rem; margin-left:-.6rem; border-radius:8px; transition:color .15s, background .15s; }
+.navlink:hover { color:var(--fg); background:rgba(255,255,255,.05); text-decoration:none; }
+
+/* botão-fantasma p/ ações secundárias (ex.: trocar de modo de criação) */
+.ghost-btn { display:inline-flex; align-items:center; gap:.4rem; color:var(--accent); font-weight:600;
+  padding:.5rem .9rem; border:1px solid #2d3746; border-radius:8px; background:transparent;
+  transition:border-color .15s, background .15s; }
+.ghost-btn:hover { border-color:var(--accent); background:rgba(59,130,246,.08); text-decoration:none; }
