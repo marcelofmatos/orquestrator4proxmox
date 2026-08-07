@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { api } from '../api.js';
+import { api, type VmDisk } from '../api.js';
 import { StatusBadge } from '../components/StatusBadge.js';
 
 function fmtBytes(n?: number): string {
@@ -17,15 +17,10 @@ function fmtUptime(sec?: number): string {
   const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
   return [d && `${d}d`, h && `${h}h`, (m || (!d && !h)) && `${m}m`].filter(Boolean).join(' ');
 }
-function diskInfo(config: Record<string, unknown> = {}): string {
-  for (const k of ['scsi0', 'virtio0', 'sata0', 'ide0']) {
-    const v = config[k];
-    if (typeof v === 'string') {
-      const m = /size=([0-9.]+)([a-zA-Z]?)/.exec(v);
-      return m ? `${m[1]} ${({ G: 'GB', M: 'MB', T: 'TB' } as Record<string, string>)[m[2]] ?? m[2] ?? 'GB'}` : v.split(',')[0];
-    }
-  }
-  return '—';
+function diskSummary(disks?: VmDisk[]): ReactNode {
+  if (!disks || disks.length === 0) return '—';
+  const totalGB = Math.round(disks.reduce((sum, d) => sum + d.sizeGB, 0));
+  return <>{totalGB} GB <span className="sub">({disks.length} disco{disks.length === 1 ? '' : 's'})</span></>;
 }
 function netInfo(net0?: string): string {
   if (!net0) return '—';
@@ -57,6 +52,7 @@ export function VmDetail() {
   const [busy, setBusy] = useState('');
   const [confirmName, setConfirmName] = useState('');
   const vm = useQuery({ queryKey: ['vm', vmid], queryFn: () => api.vm(vmid) });
+  const disks = useQuery({ queryKey: ['vm-disks', vmid], queryFn: () => api.disks(vmid) });
 
   const act = async (a: 'start' | 'stop' | 'shutdown' | 'reboot') => {
     setBusy(a);
@@ -113,7 +109,7 @@ export function VmDetail() {
 
           <div className="grid" style={{ padding: 0, margin: '1rem 0' }}>
             <Stat label="vCPU" value={cores} />
-            <Stat label="Disco" value={diskInfo(c)} />
+            <Stat label="Disco" value={diskSummary(disks.data)} />
             <Stat label="Uptime" value={running ? fmtUptime(s.uptime) : '—'} />
             <Stat label="Sistema" value={c.ostype ?? '—'} />
             <Stat label="Rede" value={netInfo(c.net0)} />

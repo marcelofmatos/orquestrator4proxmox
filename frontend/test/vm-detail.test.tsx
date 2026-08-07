@@ -8,6 +8,10 @@ import { VmDetail } from '../src/pages/VmDetail.js';
 vi.mock('../src/api.js', () => ({
   api: {
     vm: vi.fn().mockResolvedValue({ vmid: 101, name: 'c1', status: { status: 'stopped' }, config: { cores: 2, memory: '2048', description: '## Plano Dedicado\n\nCliente **Acme** — suporte 24x7' }, node: 'n1' }),
+    disks: vi.fn().mockResolvedValue([
+      { key: 'scsi0', interface: 'scsi', sizeGB: 32, storage: 'local-zfs' },
+      { key: 'scsi2', interface: 'scsi', sizeGB: 180, storage: 'local-zfs' },
+    ]),
     action: vi.fn().mockResolvedValue({ upid: 'UPID' }),
     remove: vi.fn(),
   },
@@ -37,5 +41,11 @@ describe('VmDetail', () => {
     await screen.findByText('c1');
     await userEvent.click(screen.getByRole('button', { name: /ligar/i }));
     expect(api.action).toHaveBeenCalledWith(101, 'start');
+  });
+  it('mostra o total de espaço em disco somando todos os discos', async () => {
+    render(wrap());
+    await screen.findByText('c1');
+    expect(await screen.findByText('212 GB')).toBeInTheDocument();
+    expect(screen.getByText('(2 discos)')).toBeInTheDocument();
   });
 });
