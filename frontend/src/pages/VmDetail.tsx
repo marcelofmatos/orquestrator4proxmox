@@ -100,6 +100,7 @@ export function VmDetail() {
               <button disabled={!!busy} onClick={() => act('stop')} style={{ background: '#2d3746' }}>Forçar stop</button>
               <button disabled={!!busy} onClick={() => act('reboot')} style={{ background: '#2d3746' }}>Reiniciar</button>
               <Link to={`/vms/${vmid}/console`}><button>Console</button></Link>
+              <Link to={`/vms/${vmid}/discos`}><button>Discos</button></Link>
             </div>
           </div>
 

@@ -15,6 +15,7 @@ async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
 export interface Vm { vmid: number; name?: string; status: string; node: string; tags?: string; maxcpu?: number; maxmem?: number; uptime?: number; }
 export interface Plan { label?: string; desc?: string; cores: number; memoryMB: number; homeGB: number; }
 export interface Template { vmid: number; name?: string; node: string; tags?: string; description?: string; plans?: Record<string, Plan>; }
+export interface VmDisk { key: string; interface: 'scsi' | 'virtio' | 'sata' | 'ide'; sizeGB: number; storage: string; }
 export interface Dashboard { total: number; running: number; stopped: number; allocatedVcpu: number; allocatedMemMB: number; totalVcpu: number; totalMemMB: number; }
 export interface Me { username: string; groups: string[]; }
 
@@ -27,6 +28,9 @@ export const api = {
   action: (id: number, a: 'start' | 'stop' | 'shutdown' | 'reboot') => req<{ upid: string }>('POST', `/api/vms/${id}/${a}`),
   remove: (id: number) => req<{ upid: string }>('DELETE', `/api/vms/${id}`),
   create: (body: unknown) => req<{ vmid: number; node: string }>('POST', '/api/vms', body),
+  disks: (id: number) => req<VmDisk[]>('GET', `/api/vms/${id}/disks`),
+  resizeDisk: (id: number, key: string, sizeGB: number) => req<{ ok: true }>('POST', `/api/vms/${id}/disks/${key}/resize`, { sizeGB }),
+  addDisk: (id: number, sizeGB: number) => req<VmDisk>('POST', `/api/vms/${id}/disks`, { sizeGB }),
   templates: () => req<Template[]>('GET', '/api/templates'),
   dashboard: () => req<Dashboard>('GET', '/api/dashboard'),
   console: (id: number) => req<{ wsPath: string; password: string }>('GET', `/api/vms/${id}/console`),
