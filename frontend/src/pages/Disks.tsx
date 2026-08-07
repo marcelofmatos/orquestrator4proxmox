@@ -93,7 +93,7 @@ function ResizeDiskModal(
 
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="box" style={{ flexDirection: 'column', alignItems: 'stretch', minWidth: 340 }} onClick={(e) => e.stopPropagation()}>
+      <div className="box" style={{ flexDirection: 'column', alignItems: 'stretch', minWidth: 340, maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ margin: '0 0 .3rem' }}>Redimensionar {disk.key}</h3>
         <p style={{ margin: 0 }}>Tamanho atual: <b>{disk.sizeGB} GB</b></p>
         {storage.data && <StorageGauge status={storage.data} />}
@@ -139,7 +139,7 @@ function AddDiskModal({ vmid, onClose, onDone }: { vmid: number; onClose: () => 
 
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="box" style={{ flexDirection: 'column', alignItems: 'stretch', minWidth: 340 }} onClick={(e) => e.stopPropagation()}>
+      <div className="box" style={{ flexDirection: 'column', alignItems: 'stretch', minWidth: 340, maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ margin: '0 0 .3rem' }}>Novo disco</h3>
         {storage.data && <StorageGauge status={storage.data} />}
         <label style={{ display: 'flex', flexDirection: 'column', gap: '.35rem' }}>Tamanho (GB)
