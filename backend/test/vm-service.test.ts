@@ -178,6 +178,23 @@ describe('VmService disks', () => {
     ]);
   });
 
+  it('listDisks ordena por chave (numeric-aware) mesmo com a config fora de ordem', async () => {
+    // simula a ordem arbitrária que o Proxmox pode devolver (hash Perl): scsi10 antes
+    // de scsi2, e um virtio antes de tudo. Se a implementação apenas reproduzisse a
+    // ordem de Object.entries, o teste falharia — aqui ele prova que há um sort real.
+    const scrambled = {
+      virtio1: 'local-zfs:vm-101-disk-1,size=5G',
+      scsi10: 'local-zfs:vm-101-disk-10,size=10G',
+      scsi2: 'local-zfs:vm-101-disk-2,size=180G',
+      scsi0: 'local-zfs:vm-101-disk-0,size=32G',
+      ide2: 'none,media=cdrom',
+    };
+    const client = fakeClientWithConfig(scrambled);
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    const disks = await svc.listDisks(101);
+    expect(disks.map((d) => d.key)).toEqual(['scsi0', 'scsi2', 'scsi10', 'virtio1']);
+  });
+
   it('listDisks numa VM de gestão lança NotFound', async () => {
     const client = fakeClientWithConfig(config);
     const svc = new VmService(client as any, policy, 'local-zfs');

@@ -227,6 +227,9 @@ export class VmService {
       if (!parsed) continue;
       disks.push({ key, interface: m[1] as VmDisk['interface'], ...parsed });
     }
+    // a ordem das chaves na resposta do Proxmox não é garantida (hash Perl); ordena
+    // por chave (numeric-aware) para uma listagem previsível: scsi0, scsi1, …, scsi10.
+    disks.sort((a, b) => a.key.localeCompare(b.key, undefined, { numeric: true }));
     return disks;
   }
 
