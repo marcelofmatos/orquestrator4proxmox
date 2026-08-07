@@ -18,6 +18,13 @@ export interface VmDisk {
   storage: string;
 }
 
+export interface StorageStatus {
+  storage: string;
+  totalGB: number;
+  usedGB: number;
+  availGB: number;
+}
+
 export class VmService {
   constructor(
     private readonly px: ProxmoxClient,
@@ -253,5 +260,27 @@ export class VmService {
     const key = `scsi${slot}`;
     await this.px.put(`/nodes/${vm.node}/qemu/${vmid}/config`, { [key]: `${this.targetStorage}:${sizeGB}` });
     return { key, interface: 'scsi', sizeGB, storage: this.targetStorage };
+  }
+
+  private async storageStatusFor(node: string, storage: string): Promise<StorageStatus> {
+    const status = await this.px.get<{ total: number; used: number; avail: number }>(
+      `/nodes/${node}/storage/${storage}/status`);
+    const toGB = (bytes: number) => bytes / 1024 ** 3;
+    return { storage, totalGB: toGB(status.total), usedGB: toGB(status.used), availGB: toGB(status.avail) };
+  }
+
+  /** Status do storage por trás de um disco específico (modal de redimensionar). */
+  async diskStorageStatus(vmid: number, diskKey: string): Promise<StorageStatus> {
+    const vm = await this.findVisible(vmid);
+    const cfg = await this.px.get<Record<string, unknown>>(`/nodes/${vm.node}/qemu/${vmid}/config`);
+    const v = cfg[diskKey];
+    if (typeof v !== 'string') throw new NotFoundError('disco não encontrado');
+    return this.storageStatusFor(vm.node, v.split(':')[0]);
+  }
+
+  /** Status do storage-alvo da VM (usado ao anexar um disco novo). */
+  async storageStatus(vmid: number): Promise<StorageStatus> {
+    const vm = await this.findVisible(vmid);
+    return this.storageStatusFor(vm.node, this.targetStorage);
   }
 }

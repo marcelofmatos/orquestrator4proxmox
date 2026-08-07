@@ -44,6 +44,20 @@ function fakeClientWithConfig(config: Record<string, unknown>) {
   });
 }
 
+function fakeClientWithStorage(config: Record<string, unknown>, storageStatus: Record<string, unknown>) {
+  return fakeClient({
+    get: vi.fn(async (path: string) => {
+      if (path === '/cluster/resources?type=vm') return resources;
+      if (path === '/nodes/n1/qemu/101/config') return config;
+      if (path.startsWith('/nodes/n1/storage/')) {
+        const storage = path.split('/')[4];
+        return storageStatus[storage] ?? {};
+      }
+      return {};
+    }),
+  });
+}
+
 describe('VmService.listVisible', () => {
   it('lista só VMs cliente', async () => {
     const svc = new VmService(fakeClient() as any, policy, 'local-zfs');
@@ -227,5 +241,44 @@ describe('VmService disks', () => {
     const disk = await svc.addDisk(101, 50);
     expect(disk).toEqual({ key: 'scsi1', interface: 'scsi', sizeGB: 50, storage: 'local-zfs' });
     expect(client.put).toHaveBeenCalledWith('/nodes/n1/qemu/101/config', { scsi1: 'local-zfs:50' });
+  });
+});
+
+describe('VmService storage status', () => {
+  const config = { scsi0: 'local-zfs:vm-101-disk-0,size=32G' };
+  const storageStatus = {
+    'local-zfs': { total: 500 * 1024 ** 3, used: 230 * 1024 ** 3, avail: 270 * 1024 ** 3 },
+  };
+
+  it('diskStorageStatus resolve o storage do disco e converte bytes para GB', async () => {
+    const client = fakeClientWithStorage(config, storageStatus);
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    const status = await svc.diskStorageStatus(101, 'scsi0');
+    expect(status).toEqual({ storage: 'local-zfs', totalGB: 500, usedGB: 230, availGB: 270 });
+  });
+
+  it('diskStorageStatus num disco inexistente lança NotFound', async () => {
+    const client = fakeClientWithStorage(config, storageStatus);
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    await expect(svc.diskStorageStatus(101, 'scsi5')).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it('diskStorageStatus numa VM de gestão lança NotFound', async () => {
+    const client = fakeClientWithStorage(config, storageStatus);
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    await expect(svc.diskStorageStatus(100, 'scsi0')).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it('storageStatus usa o storage-alvo configurado', async () => {
+    const client = fakeClientWithStorage(config, storageStatus);
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    const status = await svc.storageStatus(101);
+    expect(status).toEqual({ storage: 'local-zfs', totalGB: 500, usedGB: 230, availGB: 270 });
+  });
+
+  it('storageStatus numa VM de gestão lança NotFound', async () => {
+    const client = fakeClientWithStorage(config, storageStatus);
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    await expect(svc.storageStatus(100)).rejects.toBeInstanceOf(NotFoundError);
   });
 });

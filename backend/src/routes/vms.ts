@@ -80,4 +80,11 @@ export async function registerVmRoutes(app: FastifyInstance, jwtSecret: string, 
     await vms.resizeDisk(id, key, sizeGB);
     return { ok: true };
   });
+
+  app.get('/api/vms/:id/storage', async (req) => vms.storageStatus(idParam.parse(req.params).id));
+
+  app.get('/api/vms/:id/disks/:key/storage', async (req) => {
+    const { id, key } = diskKeyParam.parse(req.params);
+    return vms.diskStorageStatus(id, key);
+  });
 }

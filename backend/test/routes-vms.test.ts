@@ -25,6 +25,8 @@ function fakeVmService() {
     listDisks: vi.fn(async () => [{ key: 'scsi0', interface: 'scsi', sizeGB: 32, storage: 'local-zfs' }]),
     addDisk: vi.fn(async () => ({ key: 'scsi1', interface: 'scsi', sizeGB: 50, storage: 'local-zfs' })),
     resizeDisk: vi.fn(async () => undefined),
+    storageStatus: vi.fn(async () => ({ storage: 'local-zfs', totalGB: 500, usedGB: 230, availGB: 270 })),
+    diskStorageStatus: vi.fn(async () => ({ storage: 'local-zfs', totalGB: 500, usedGB: 230, availGB: 270 })),
   };
 }
 
@@ -133,6 +135,24 @@ describe('rotas de VM', () => {
       payload: { sizeGB: 64 } });
     expect(r.statusCode).toBe(400);
     expect(svc.resizeDisk).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it('retorna o status do storage-alvo da VM', async () => {
+    const svc = fakeVmService();
+    const app = buildApp(cfg(), { authenticate: vi.fn() as any, vmService: svc as any });
+    const r = await app.inject({ method: 'GET', url: '/api/vms/101/storage', cookies: authCookie() });
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toEqual({ storage: 'local-zfs', totalGB: 500, usedGB: 230, availGB: 270 });
+    await app.close();
+  });
+
+  it('retorna o status do storage de um disco específico', async () => {
+    const svc = fakeVmService();
+    const app = buildApp(cfg(), { authenticate: vi.fn() as any, vmService: svc as any });
+    const r = await app.inject({ method: 'GET', url: '/api/vms/101/disks/scsi0/storage', cookies: authCookie() });
+    expect(r.statusCode).toBe(200);
+    expect(svc.diskStorageStatus).toHaveBeenCalledWith(101, 'scsi0');
     await app.close();
   });
 });
