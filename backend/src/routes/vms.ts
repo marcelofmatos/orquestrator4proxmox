@@ -33,6 +33,11 @@ const createBody = z.object({
   start: z.boolean().default(true),
 });
 const lifecycle = ['start', 'stop', 'shutdown', 'reboot'] as const;
+const diskKeyParam = z.object({
+  id: z.coerce.number().int().positive(),
+  key: z.string().regex(/^(scsi|virtio|sata|ide)([0-9]|[12][0-9]|30)$/),
+});
+const diskSizeBody = z.object({ sizeGB: z.number().int().positive() });
 
 export async function registerVmRoutes(app: FastifyInstance, jwtSecret: string, vms: VmService) {
   const authHook = makeAuthHook(jwtSecret);
@@ -57,5 +62,22 @@ export async function registerVmRoutes(app: FastifyInstance, jwtSecret: string, 
     const result = await vms.create(createBody.parse(req.body));
     reply.code(201);
     return result;
+  });
+
+  app.get('/api/vms/:id/disks', async (req) => vms.listDisks(idParam.parse(req.params).id));
+
+  app.post('/api/vms/:id/disks', async (req, reply) => {
+    const { id } = idParam.parse(req.params);
+    const { sizeGB } = diskSizeBody.parse(req.body);
+    const disk = await vms.addDisk(id, sizeGB);
+    reply.code(201);
+    return disk;
+  });
+
+  app.post('/api/vms/:id/disks/:key/resize', async (req) => {
+    const { id, key } = diskKeyParam.parse(req.params);
+    const { sizeGB } = diskSizeBody.parse(req.body);
+    await vms.resizeDisk(id, key, sizeGB);
+    return { ok: true };
   });
 }

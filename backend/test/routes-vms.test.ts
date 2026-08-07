@@ -22,6 +22,9 @@ function fakeVmService() {
     lifecycle: vi.fn(async () => 'UPID'),
     remove: vi.fn(async () => 'UPID'),
     create: vi.fn(async () => ({ vmid: 103, node: 'n1' })),
+    listDisks: vi.fn(async () => [{ key: 'scsi0', interface: 'scsi', sizeGB: 32, storage: 'local-zfs' }]),
+    addDisk: vi.fn(async () => ({ key: 'scsi1', interface: 'scsi', sizeGB: 50, storage: 'local-zfs' })),
+    resizeDisk: vi.fn(async () => undefined),
   };
 }
 
@@ -81,6 +84,55 @@ describe('rotas de VM', () => {
         net: { mode: 'static', ip: '1.2.3.4/24,gw=9.9.9.9,foo=bar' } } });
     expect(r.statusCode).toBe(400);
     expect(svc.create).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it('lista discos da VM', async () => {
+    const svc = fakeVmService();
+    const app = buildApp(cfg(), { authenticate: vi.fn() as any, vmService: svc as any });
+    const r = await app.inject({ method: 'GET', url: '/api/vms/101/disks', cookies: authCookie() });
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toEqual([{ key: 'scsi0', interface: 'scsi', sizeGB: 32, storage: 'local-zfs' }]);
+    await app.close();
+  });
+
+  it('anexa disco novo', async () => {
+    const svc = fakeVmService();
+    const app = buildApp(cfg(), { authenticate: vi.fn() as any, vmService: svc as any });
+    const r = await app.inject({ method: 'POST', url: '/api/vms/101/disks', cookies: authCookie(),
+      payload: { sizeGB: 50 } });
+    expect(r.statusCode).toBe(201);
+    expect(svc.addDisk).toHaveBeenCalledWith(101, 50);
+    await app.close();
+  });
+
+  it('rejeita tamanho inválido ao anexar disco com 400', async () => {
+    const svc = fakeVmService();
+    const app = buildApp(cfg(), { authenticate: vi.fn() as any, vmService: svc as any });
+    const r = await app.inject({ method: 'POST', url: '/api/vms/101/disks', cookies: authCookie(),
+      payload: { sizeGB: -5 } });
+    expect(r.statusCode).toBe(400);
+    expect(svc.addDisk).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it('redimensiona um disco', async () => {
+    const svc = fakeVmService();
+    const app = buildApp(cfg(), { authenticate: vi.fn() as any, vmService: svc as any });
+    const r = await app.inject({ method: 'POST', url: '/api/vms/101/disks/scsi0/resize', cookies: authCookie(),
+      payload: { sizeGB: 64 } });
+    expect(r.statusCode).toBe(200);
+    expect(svc.resizeDisk).toHaveBeenCalledWith(101, 'scsi0', 64);
+    await app.close();
+  });
+
+  it('rejeita chave de disco inválida no resize com 400', async () => {
+    const svc = fakeVmService();
+    const app = buildApp(cfg(), { authenticate: vi.fn() as any, vmService: svc as any });
+    const r = await app.inject({ method: 'POST', url: '/api/vms/101/disks/not-a-disk/resize', cookies: authCookie(),
+      payload: { sizeGB: 64 } });
+    expect(r.statusCode).toBe(400);
+    expect(svc.resizeDisk).not.toHaveBeenCalled();
     await app.close();
   });
 });
