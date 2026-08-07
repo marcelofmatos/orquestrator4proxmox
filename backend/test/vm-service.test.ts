@@ -66,6 +66,19 @@ describe('VmService.listVisible', () => {
   });
 });
 
+describe('VmService.get', () => {
+  it('remove o bloco o4p-plans da description (a VM clonada herda a Notes do template)', async () => {
+    const client = fakeClientWithConfig({
+      cores: 2, memory: '2048',
+      description: '# VM\ntexto normal\n<!-- o4p-plans\npadrao=cores:4,memoryMB:8192,homeGB:80\n-->',
+    });
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    const result = await svc.get(101);
+    expect(result.config.description).not.toContain('o4p-plans');
+    expect(result.config.description).toContain('texto normal');
+  });
+});
+
 describe('VmService guard', () => {
   it('lifecycle numa VM de gestão lança NotFound', async () => {
     const svc = new VmService(fakeClient() as any, policy, 'local-zfs');

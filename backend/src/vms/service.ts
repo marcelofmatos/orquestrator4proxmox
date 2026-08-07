@@ -72,6 +72,9 @@ export class VmService {
       this.px.get<Record<string, unknown>>(`/nodes/${vm.node}/qemu/${vmid}/config`),
       this.px.get<Record<string, unknown>>(`/nodes/${vm.node}/qemu/${vmid}/status/current`),
     ]);
+    // a VM clonada herda a mesma Notes do template, incluindo o bloco de planos
+    // (invisível no card do template) — esconde aqui também, senão vaza no detalhe.
+    if (typeof config.description === 'string') config.description = stripPlansBlock(config.description);
     return { ...vm, config, status };
   }
 
