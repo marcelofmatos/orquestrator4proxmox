@@ -1,6 +1,6 @@
 import type { ProxmoxClient } from '../proxmox/client.js';
 import type { ClusterVm, TaskStatus } from '../proxmox/types.js';
-import { NotFoundError, ProxmoxError } from '../errors.js';
+import { AppError, NotFoundError, ProxmoxError } from '../errors.js';
 import { filterVisible, isClientVisible, parseTags, type TagPolicy } from './visibility.js';
 import { parsePlans, stripPlansBlock, type Plan } from './plans.js';
 
@@ -9,6 +9,13 @@ export interface CreateVmInput {
   cores?: number; memoryMB?: number; diskGB?: number;
   net?: { mode: 'dhcp' } | { mode: 'static'; ip: string; gateway?: string };
   ciuser?: string; cipassword?: string; sshkey?: string; start?: boolean;
+}
+
+export interface VmDisk {
+  key: string;
+  interface: 'scsi' | 'virtio' | 'sata' | 'ide';
+  sizeGB: number;
+  storage: string;
 }
 
 export class VmService {
@@ -21,14 +28,20 @@ export class VmService {
     private readonly dataDisk = 'scsi2',
   ) {}
 
+  private static readonly DISK_KEY = /^(scsi|virtio|sata|ide)(\d+)$/;
+
+  /** Tamanho (GiB) e storage de uma entrada de disco (ex.: "local-zfs:vm-101-disk-0,size=32G"). */
+  private parseDiskValue(value: string): { storage: string; sizeGB: number } | undefined {
+    const m = /(?:^|,)size=(\d+(?:\.\d+)?)([KMGT])/i.exec(value);
+    if (!m) return undefined;
+    const mult: Record<string, number> = { K: 1 / (1024 * 1024), M: 1 / 1024, G: 1, T: 1024 };
+    return { storage: value.split(':')[0], sizeGB: parseFloat(m[1]) * (mult[m[2].toUpperCase()] ?? 1) };
+  }
+
   /** Tamanho (GiB) de um disco a partir da config da VM (ex.: "…,size=80G"). */
   private diskSizeGB(cfg: Record<string, unknown>, disk: string): number | undefined {
     const v = cfg[disk];
-    if (typeof v !== 'string') return undefined;
-    const m = /(?:^|,)size=(\d+(?:\.\d+)?)([KMGT])/i.exec(v);
-    if (!m) return undefined;
-    const mult: Record<string, number> = { K: 1 / (1024 * 1024), M: 1 / 1024, G: 1, T: 1024 };
-    return parseFloat(m[1]) * (mult[m[2].toUpperCase()] ?? 1);
+    return typeof v === 'string' ? this.parseDiskValue(v)?.sizeGB : undefined;
   }
 
   private resources(): Promise<ClusterVm[]> {
@@ -199,5 +212,43 @@ export class VmService {
 
   async findVisibleNode(vmid: number): Promise<string> {
     return (await this.findVisible(vmid)).node;
+  }
+
+  /** Lista os discos reais (exclui CD-ROM) anexados à VM. */
+  async listDisks(vmid: number): Promise<VmDisk[]> {
+    const vm = await this.findVisible(vmid);
+    const cfg = await this.px.get<Record<string, unknown>>(`/nodes/${vm.node}/qemu/${vmid}/config`);
+    const disks: VmDisk[] = [];
+    for (const [key, value] of Object.entries(cfg)) {
+      const m = VmService.DISK_KEY.exec(key);
+      if (!m || typeof value !== 'string') continue;
+      if (value === 'none' || /(?:^|,)media=cdrom/.test(value)) continue;
+      const parsed = this.parseDiskValue(value);
+      if (!parsed) continue;
+      disks.push({ key, interface: m[1] as VmDisk['interface'], ...parsed });
+    }
+    return disks;
+  }
+
+  /** Cresce um disco existente. O Proxmox só permite crescer, nunca encolher. */
+  async resizeDisk(vmid: number, diskKey: string, sizeGB: number): Promise<void> {
+    const vm = await this.findVisible(vmid);
+    const cfg = await this.px.get<Record<string, unknown>>(`/nodes/${vm.node}/qemu/${vmid}/config`);
+    const current = this.diskSizeGB(cfg, diskKey);
+    if (current === undefined) throw new NotFoundError('disco não encontrado');
+    if (sizeGB <= current) throw new AppError('o novo tamanho deve ser maior que o atual', 400);
+    await this.px.put(`/nodes/${vm.node}/qemu/${vmid}/resize`, { disk: diskKey, size: `${sizeGB}G` });
+  }
+
+  /** Anexa um disco novo à VM no próximo slot scsiN livre. */
+  async addDisk(vmid: number, sizeGB: number): Promise<VmDisk> {
+    const vm = await this.findVisible(vmid);
+    const cfg = await this.px.get<Record<string, unknown>>(`/nodes/${vm.node}/qemu/${vmid}/config`);
+    let slot = -1;
+    for (let n = 0; n <= 30; n++) { if (cfg[`scsi${n}`] === undefined) { slot = n; break; } }
+    if (slot < 0) throw new ProxmoxError('sem slot scsi livre nesta VM (máximo 31 discos)');
+    const key = `scsi${slot}`;
+    await this.px.put(`/nodes/${vm.node}/qemu/${vmid}/config`, { [key]: `${this.targetStorage}:${sizeGB}` });
+    return { key, interface: 'scsi', sizeGB, storage: this.targetStorage };
   }
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { VmService } from '../src/vms/service.js';
-import { NotFoundError } from '../src/errors.js';
+import { NotFoundError, AppError } from '../src/errors.js';
 
 const policy = { clientTag: 'cliente', hiddenTags: ['mgmt', 'infra'] };
 const resources = [
@@ -32,6 +32,16 @@ function fakeClient(over: Partial<Record<string, any>> = {}) {
     del: vi.fn(async () => 'UPID:n1:del'),
     ...over,
   };
+}
+
+function fakeClientWithConfig(config: Record<string, unknown>) {
+  return fakeClient({
+    get: vi.fn(async (path: string) => {
+      if (path === '/cluster/resources?type=vm') return resources;
+      if (path === '/nodes/n1/qemu/101/config') return config;
+      return {};
+    }),
+  });
 }
 
 describe('VmService.listVisible', () => {
@@ -148,5 +158,57 @@ describe('VmService.taskStatus guard', () => {
     const svc = new VmService(fakeClient() as any, policy, 'local-zfs');
     await expect(svc.taskStatus('UPID:n1:0000:0000:0000:qmstart:100:root@pam:'))
       .rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
+describe('VmService disks', () => {
+  const config = {
+    scsi0: 'local-zfs:vm-101-disk-0,size=32G',
+    scsi2: 'local-zfs:vm-101-disk-2,size=180G',
+    ide2: 'none,media=cdrom',
+  };
+
+  it('listDisks lista os discos reais e ignora o cdrom', async () => {
+    const client = fakeClientWithConfig(config);
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    const disks = await svc.listDisks(101);
+    expect(disks).toEqual([
+      { key: 'scsi0', interface: 'scsi', sizeGB: 32, storage: 'local-zfs' },
+      { key: 'scsi2', interface: 'scsi', sizeGB: 180, storage: 'local-zfs' },
+    ]);
+  });
+
+  it('listDisks numa VM de gestão lança NotFound', async () => {
+    const client = fakeClientWithConfig(config);
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    await expect(svc.listDisks(100)).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it('resizeDisk cresce o disco chamando o resize do Proxmox', async () => {
+    const client = fakeClientWithConfig(config);
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    await svc.resizeDisk(101, 'scsi0', 64);
+    expect(client.put).toHaveBeenCalledWith('/nodes/n1/qemu/101/resize', { disk: 'scsi0', size: '64G' });
+  });
+
+  it('resizeDisk rejeita encolher sem chamar o Proxmox', async () => {
+    const client = fakeClientWithConfig(config);
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    await expect(svc.resizeDisk(101, 'scsi0', 32)).rejects.toBeInstanceOf(AppError);
+    expect(client.put).not.toHaveBeenCalled();
+  });
+
+  it('resizeDisk num disco inexistente lança NotFound', async () => {
+    const client = fakeClientWithConfig(config);
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    await expect(svc.resizeDisk(101, 'scsi5', 64)).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it('addDisk anexa no primeiro slot scsiN livre', async () => {
+    const client = fakeClientWithConfig(config);
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    const disk = await svc.addDisk(101, 50);
+    expect(disk).toEqual({ key: 'scsi1', interface: 'scsi', sizeGB: 50, storage: 'local-zfs' });
+    expect(client.put).toHaveBeenCalledWith('/nodes/n1/qemu/101/config', { scsi1: 'local-zfs:50' });
   });
 });
