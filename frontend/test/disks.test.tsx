@@ -49,6 +49,18 @@ describe('Disks', () => {
     expect(api.resizeDisk).toHaveBeenCalledWith(101, 'scsi0', 64);
   });
 
+  it('mostra uma sombra na barra de storage refletindo o incremento pendente', async () => {
+    const { container } = render(wrap());
+    await screen.findByText('scsi0');
+    await userEvent.click(screen.getAllByRole('button', { name: /redimensionar/i })[0]);
+    await screen.findByText(/usados no storage/i);
+    expect(container.querySelectorAll('.gauge .gauge-fill')).toHaveLength(1);
+    const input = screen.getByLabelText(/aumentar em/i);
+    await userEvent.clear(input);
+    await userEvent.type(input, '32');
+    expect(container.querySelectorAll('.gauge .gauge-fill')).toHaveLength(2);
+  });
+
   it('anexa um disco novo com o tamanho total informado, mostrando a barra de storage', async () => {
     const { api } = await import('../src/api.js');
     render(wrap());

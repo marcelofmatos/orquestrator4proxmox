@@ -7,15 +7,30 @@ function fmtGB(n: number): string {
   return `${Math.round(n)} GB`;
 }
 
-function StorageGauge({ status }: { status: StorageStatus }) {
-  const pct = status.totalGB > 0 ? Math.min(100, (status.usedGB / status.totalGB) * 100) : 0;
-  const color = pct > 85 ? 'var(--err)' : pct > 60 ? '#f59e0b' : 'var(--run)';
+function gaugeColor(pct: number): string {
+  return pct > 85 ? 'var(--err)' : pct > 60 ? '#f59e0b' : 'var(--run)';
+}
+
+// pendingGB = quanto essa operação (incremento do resize, ou tamanho do disco novo) vai
+// somar ao storage — mostrado como uma "sombra" translúcida depois do uso atual, pra dar
+// visibilidade de quanto vai ficar ocupado no total antes de confirmar.
+function StorageGauge({ status, pendingGB = 0 }: { status: StorageStatus; pendingGB?: number }) {
+  const usedPct = status.totalGB > 0 ? Math.min(100, (status.usedGB / status.totalGB) * 100) : 0;
+  const projectedPct = status.totalGB > 0
+    ? Math.min(100, ((status.usedGB + Math.max(0, pendingGB)) / status.totalGB) * 100)
+    : 0;
+  const pendingPct = Math.max(0, projectedPct - usedPct);
   return (
     <div>
       <p style={{ margin: '0 0 .3rem', fontSize: '.85rem', opacity: .8 }}>
         {fmtGB(status.usedGB)} / {fmtGB(status.totalGB)} usados no storage {status.storage}
       </p>
-      <div className="gauge"><div className="gauge-fill" style={{ width: `${pct}%`, background: color }} /></div>
+      <div className="gauge" style={{ display: 'flex' }}>
+        <div className="gauge-fill" style={{ width: `${usedPct}%`, background: gaugeColor(usedPct) }} />
+        {pendingPct > 0 && (
+          <div className="gauge-fill" style={{ width: `${pendingPct}%`, background: gaugeColor(projectedPct), opacity: .4 }} />
+        )}
+      </div>
     </div>
   );
 }
@@ -96,7 +111,7 @@ function ResizeDiskModal(
       <div className="box" style={{ flexDirection: 'column', alignItems: 'stretch', minWidth: 340, maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ margin: '0 0 .3rem' }}>Redimensionar {disk.key}</h3>
         <p style={{ margin: 0 }}>Tamanho atual: <b>{disk.sizeGB} GB</b></p>
-        {storage.data && <StorageGauge status={storage.data} />}
+        {storage.data && <StorageGauge status={storage.data} pendingGB={incrementGB} />}
         <label style={{ display: 'flex', flexDirection: 'column', gap: '.35rem' }}>Aumentar em (GB)
           <input type="number" min={0} value={increment} onChange={(e) => setIncrement(e.target.value)} />
         </label>
@@ -141,7 +156,7 @@ function AddDiskModal({ vmid, onClose, onDone }: { vmid: number; onClose: () => 
     <div className="overlay" onClick={onClose}>
       <div className="box" style={{ flexDirection: 'column', alignItems: 'stretch', minWidth: 340, maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ margin: '0 0 .3rem' }}>Novo disco</h3>
-        {storage.data && <StorageGauge status={storage.data} />}
+        {storage.data && <StorageGauge status={storage.data} pendingGB={sizeGBNum} />}
         <label style={{ display: 'flex', flexDirection: 'column', gap: '.35rem' }}>Tamanho (GB)
           <input type="number" min={1} value={sizeGB} onChange={(e) => setSizeGB(e.target.value)} />
         </label>
