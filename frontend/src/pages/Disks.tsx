@@ -1,10 +1,26 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
-import { api, type VmDisk, type StorageStatus } from '../api.js';
+import { api, type VmDisk, type StorageStatus, type DiskUsage } from '../api.js';
 
 function fmtGB(n: number): string {
   return `${Math.round(n)} GB`;
+}
+
+/** Barra de uso real do disco (guest agent). Sem dado do agente → aviso discreto. */
+function DiskUsageBar({ usage }: { usage?: DiskUsage }) {
+  if (!usage) return <span style={{ opacity: .5, fontSize: '.85rem' }}>sem dados do agente</span>;
+  const pct = Math.round(usage.usedPct);
+  return (
+    <div title={usage.mounts.join(', ')} style={{ minWidth: 140 }}>
+      <div style={{ fontSize: '.8rem', opacity: .85, marginBottom: '.25rem' }}>
+        {fmtGB(usage.usedGB)} / {fmtGB(usage.fsTotalGB)} · <b>{pct}%</b>
+      </div>
+      <div className="gauge">
+        <div className="gauge-fill" style={{ width: `${usage.usedPct}%`, background: gaugeColor(usage.usedPct) }} />
+      </div>
+    </div>
+  );
 }
 
 function gaugeColor(pct: number): string {
@@ -39,12 +55,17 @@ export function Disks() {
   const { id } = useParams();
   const vmid = Number(id);
   const qc = useQueryClient();
+  const vm = useQuery({ queryKey: ['vm', vmid], queryFn: () => api.vm(vmid) });
   const disks = useQuery({ queryKey: ['vm-disks', vmid], queryFn: () => api.disks(vmid) });
+  // uso real por disco (guest agent) — atualiza sozinho, sem travar a tela se o agente estiver off
+  const usage = useQuery({ queryKey: ['vm-disk-usage', vmid], queryFn: () => api.disksUsage(vmid), refetchInterval: 15000 });
+  const usageByKey = new Map((usage.data ?? []).map((u) => [u.key, u]));
   const [resizing, setResizing] = useState<VmDisk | null>(null);
   const [adding, setAdding] = useState(false);
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['vm-disks', vmid] });
+    qc.invalidateQueries({ queryKey: ['vm-disk-usage', vmid] });
     qc.invalidateQueries({ queryKey: ['vm', vmid] });
   };
 
@@ -52,14 +73,19 @@ export function Disks() {
     <div style={{ maxWidth: 800, margin: '2rem auto', padding: '0 1rem' }}>
       <Link to={`/vms/${vmid}`} className="navlink">← voltar</Link>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '1rem' }}>
-        <h1>Discos — VM #{vmid}</h1>
+        <div>
+          <h1 style={{ margin: 0 }}>Discos — {vm.data?.name ?? `VM #${vmid}`}</h1>
+          <p style={{ margin: '.25rem 0 0', color: '#8b97a7' }}>
+            VM #{vmid}{vm.data?.node ? ` · node ${vm.data.node}` : ''}
+          </p>
+        </div>
         <button onClick={() => setAdding(true)}>+ Novo disco</button>
       </div>
 
       {disks.isLoading && <p>Carregando…</p>}
       {disks.data && disks.data.length > 0 && (
         <table>
-          <thead><tr><th>Disco</th><th>Interface</th><th>Storage</th><th>Tamanho</th><th></th></tr></thead>
+          <thead><tr><th>Disco</th><th>Interface</th><th>Storage</th><th>Tamanho</th><th>Uso</th><th></th></tr></thead>
           <tbody>
             {disks.data.map((d) => (
               <tr key={d.key}>
@@ -67,6 +93,7 @@ export function Disks() {
                 <td>{d.interface}</td>
                 <td>{d.storage}</td>
                 <td>{d.sizeGB} GB</td>
+                <td><DiskUsageBar usage={usageByKey.get(d.key)} /></td>
                 <td><button onClick={() => setResizing(d)} style={{ background: '#2d3746' }}>Redimensionar</button></td>
               </tr>
             ))}

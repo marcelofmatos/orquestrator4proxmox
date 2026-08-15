@@ -295,3 +295,65 @@ describe('VmService storage status', () => {
     await expect(svc.storageStatus(100)).rejects.toBeInstanceOf(NotFoundError);
   });
 });
+
+describe('VmService.disksUsage', () => {
+  // resposta típica do guest agent (get-fsinfo): cada FS traz disk[].serial = …drive-scsiN
+  const fsinfo = {
+    result: [
+      { name: 'sda1', mountpoint: '/', 'total-bytes': 9.2 * 1024 ** 3, 'used-bytes': 4.7 * 1024 ** 3,
+        disk: [{ serial: '0QEMU_QEMU_HARDDISK_drive-scsi0' }] },
+      { name: 'sdb1', mountpoint: '/var', 'total-bytes': 36 * 1024 ** 3, 'used-bytes': 33 * 1024 ** 3,
+        disk: [{ serial: '0QEMU_QEMU_HARDDISK_drive-scsi1' }] },
+      // FS que não mapeia a exatamente 1 disco (tmpfs, sem disk) — deve ser ignorado
+      { name: 'tmpfs', mountpoint: '/run', 'total-bytes': 1 * 1024 ** 3, 'used-bytes': 0, disk: [] },
+    ],
+  };
+
+  function fakeClientWithFsinfo(result: unknown) {
+    return fakeClient({
+      get: vi.fn(async (path: string) => {
+        if (path === '/cluster/resources?type=vm') return resources;
+        if (path.endsWith('/agent/get-fsinfo')) return result;
+        return {};
+      }),
+    });
+  }
+
+  it('agrega o uso por disco a partir do get-fsinfo do guest agent', async () => {
+    const svc = new VmService(fakeClientWithFsinfo(fsinfo) as any, policy, 'local-zfs');
+    const usage = await svc.disksUsage(101);
+    expect(usage.map((u) => u.key)).toEqual(['scsi0', 'scsi1']);
+    const varDisk = usage.find((u) => u.key === 'scsi1')!;
+    expect(Math.round(varDisk.usedPct)).toBe(92); // 33/36 ≈ 91,7% → o disco que precisa crescer
+    expect(varDisk.mounts).toEqual(['/var']);
+  });
+
+  it('soma múltiplos filesystems que apontam para o mesmo disco', async () => {
+    const twoFsOneDisk = { result: [
+      { mountpoint: '/', 'total-bytes': 10 * 1024 ** 3, 'used-bytes': 4 * 1024 ** 3, disk: [{ serial: 'drive-scsi0' }] },
+      { mountpoint: '/boot', 'total-bytes': 2 * 1024 ** 3, 'used-bytes': 1 * 1024 ** 3, disk: [{ serial: 'drive-scsi0' }] },
+    ] };
+    const svc = new VmService(fakeClientWithFsinfo(twoFsOneDisk) as any, policy, 'local-zfs');
+    const usage = await svc.disksUsage(101);
+    expect(usage).toHaveLength(1);
+    expect(usage[0].usedGB).toBeCloseTo(5, 5);
+    expect(usage[0].fsTotalGB).toBeCloseTo(12, 5);
+  });
+
+  it('retorna [] quando o guest agent não responde (VM parada/sem agent)', async () => {
+    const client = fakeClient({
+      get: vi.fn(async (path: string) => {
+        if (path === '/cluster/resources?type=vm') return resources;
+        if (path.endsWith('/agent/get-fsinfo')) throw new Error('QEMU guest agent is not running');
+        return {};
+      }),
+    });
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    await expect(svc.disksUsage(101)).resolves.toEqual([]);
+  });
+
+  it('numa VM de gestão lança NotFound (nem chega a consultar o agent)', async () => {
+    const svc = new VmService(fakeClientWithFsinfo(fsinfo) as any, policy, 'local-zfs');
+    await expect(svc.disksUsage(100)).rejects.toBeInstanceOf(NotFoundError);
+  });
+});

@@ -23,6 +23,7 @@ function fakeVmService() {
     remove: vi.fn(async () => 'UPID'),
     create: vi.fn(async () => ({ vmid: 103, node: 'n1' })),
     listDisks: vi.fn(async () => [{ key: 'scsi0', interface: 'scsi', sizeGB: 32, storage: 'local-zfs' }]),
+    disksUsage: vi.fn(async () => [{ key: 'scsi0', usedGB: 4.7, fsTotalGB: 9.2, usedPct: 51.1, mounts: ['/'] }]),
     addDisk: vi.fn(async () => ({ key: 'scsi1', interface: 'scsi', sizeGB: 50, storage: 'local-zfs' })),
     resizeDisk: vi.fn(async () => undefined),
     storageStatus: vi.fn(async () => ({ storage: 'local-zfs', totalGB: 500, usedGB: 230, availGB: 270 })),
@@ -135,6 +136,16 @@ describe('rotas de VM', () => {
       payload: { sizeGB: 64 } });
     expect(r.statusCode).toBe(400);
     expect(svc.resizeDisk).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it('retorna o uso real por disco (guest agent)', async () => {
+    const svc = fakeVmService();
+    const app = buildApp(cfg(), { authenticate: vi.fn() as any, vmService: svc as any });
+    const r = await app.inject({ method: 'GET', url: '/api/vms/101/disks/usage', cookies: authCookie() });
+    expect(r.statusCode).toBe(200);
+    expect(svc.disksUsage).toHaveBeenCalledWith(101);
+    expect(r.json()[0]).toMatchObject({ key: 'scsi0', usedPct: 51.1 });
     await app.close();
   });
 

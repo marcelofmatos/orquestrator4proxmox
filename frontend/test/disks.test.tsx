@@ -7,9 +7,14 @@ import { Disks } from '../src/pages/Disks.js';
 
 vi.mock('../src/api.js', () => ({
   api: {
+    vm: vi.fn().mockResolvedValue({ vmid: 101, name: 'alemartiadv', node: 'sp1-sd-nhw-1' }),
     disks: vi.fn().mockResolvedValue([
       { key: 'scsi0', interface: 'scsi', sizeGB: 32, storage: 'local-zfs' },
       { key: 'scsi2', interface: 'scsi', sizeGB: 180, storage: 'local-zfs' },
+    ]),
+    disksUsage: vi.fn().mockResolvedValue([
+      { key: 'scsi0', usedGB: 4.7, fsTotalGB: 9.2, usedPct: 51, mounts: ['/'] },
+      { key: 'scsi2', usedGB: 7.4, fsTotalGB: 100, usedPct: 7, mounts: ['/home'] },
     ]),
     resizeDisk: vi.fn().mockResolvedValue({ ok: true }),
     addDisk: vi.fn().mockResolvedValue({ key: 'scsi1', interface: 'scsi', sizeGB: 50, storage: 'local-zfs' }),
@@ -35,6 +40,26 @@ describe('Disks', () => {
     expect(screen.getByText('scsi2')).toBeInTheDocument();
   });
 
+  it('mostra o nome do host no título e o uso real por disco', async () => {
+    render(wrap());
+    // título traz o nome do host, não só o VMID
+    expect(await screen.findByRole('heading', { name: /alemartiadv/i })).toBeInTheDocument();
+    // uso por disco do guest agent (used/total · %)
+    expect(await screen.findByText((t) => t.includes('5 GB') && t.includes('9 GB'))).toBeInTheDocument();
+    expect(screen.getByText('51%')).toBeInTheDocument();
+  });
+
+  it('sinaliza quando o guest agent não devolve uso para um disco', async () => {
+    const { api } = await import('../src/api.js');
+    (api.disksUsage as any).mockResolvedValueOnce([
+      { key: 'scsi0', usedGB: 4.7, fsTotalGB: 9.2, usedPct: 51, mounts: ['/'] },
+      // scsi2 ausente → deve aparecer o aviso de agente indisponível para esse disco
+    ]);
+    render(wrap());
+    await screen.findByText('scsi2');
+    expect(await screen.findByText(/sem dados do agente/i)).toBeInTheDocument();
+  });
+
   it('redimensiona um disco somando o incremento ao tamanho atual, com preview em tempo real', async () => {
     const { api } = await import('../src/api.js');
     render(wrap());
@@ -54,11 +79,12 @@ describe('Disks', () => {
     await screen.findByText('scsi0');
     await userEvent.click(screen.getAllByRole('button', { name: /redimensionar/i })[0]);
     await screen.findByText(/usados no storage/i);
-    expect(container.querySelectorAll('.gauge .gauge-fill')).toHaveLength(1);
+    // escopo no overlay: a tabela também tem gauges (uso por disco), fora do modal
+    expect(container.querySelectorAll('.overlay .gauge .gauge-fill')).toHaveLength(1);
     const input = screen.getByLabelText(/aumentar em/i);
     await userEvent.clear(input);
     await userEvent.type(input, '32');
-    expect(container.querySelectorAll('.gauge .gauge-fill')).toHaveLength(2);
+    expect(container.querySelectorAll('.overlay .gauge .gauge-fill')).toHaveLength(2);
   });
 
   it('anexa um disco novo com o tamanho total informado, mostrando a barra de storage', async () => {

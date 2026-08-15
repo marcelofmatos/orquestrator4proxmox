@@ -66,6 +66,9 @@ export async function registerVmRoutes(app: FastifyInstance, jwtSecret: string, 
 
   app.get('/api/vms/:id/disks', async (req) => vms.listDisks(idParam.parse(req.params).id));
 
+  // uso real por disco (guest agent) — para identificar qual disco precisa crescer
+  app.get('/api/vms/:id/disks/usage', async (req) => vms.disksUsage(idParam.parse(req.params).id));
+
   app.post('/api/vms/:id/disks', async (req, reply) => {
     const { id } = idParam.parse(req.params);
     const { sizeGB } = diskSizeBody.parse(req.body);

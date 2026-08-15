@@ -25,6 +25,15 @@ export interface StorageStatus {
   availGB: number;
 }
 
+/** Uso real de um disco visto pelo guest agent (agregado dos filesystems daquele disco). */
+export interface DiskUsage {
+  key: string;        // scsi0, scsi1, …
+  usedGB: number;     // soma do usado nos filesystems do disco
+  fsTotalGB: number;  // soma do total (tamanho formatado) dos filesystems do disco
+  usedPct: number;    // 0–100
+  mounts: string[];   // pontos de montagem (/, /var, …)
+}
+
 export class VmService {
   constructor(
     private readonly px: ProxmoxClient,
@@ -285,5 +294,50 @@ export class VmService {
   async storageStatus(vmid: number): Promise<StorageStatus> {
     const vm = await this.findVisible(vmid);
     return this.storageStatusFor(vm.node, this.targetStorage);
+  }
+
+  /**
+   * Uso real por disco, via QEMU guest agent (get-fsinfo). Cada filesystem traz um serial
+   * `…drive-scsiN` que mapeia ao disco; agrega os filesystems por disco. Retorna [] se o
+   * agent não responder (VM parada/sem agent) ou disco recém-anexado ainda sem filesystem.
+   */
+  async disksUsage(vmid: number): Promise<DiskUsage[]> {
+    const vm = await this.findVisible(vmid);
+    let result: Array<Record<string, any>> = [];
+    try {
+      const info = await this.px.get<any>(`/nodes/${vm.node}/qemu/${vmid}/agent/get-fsinfo`);
+      const arr = Array.isArray(info) ? info : info?.result;
+      result = Array.isArray(arr) ? arr : [];
+    } catch {
+      return []; // agent indisponível
+    }
+    const agg = new Map<string, { used: number; total: number; mounts: string[] }>();
+    for (const fs of result) {
+      const used = Number(fs['used-bytes']);
+      const total = Number(fs['total-bytes']);
+      if (!Number.isFinite(used) || !Number.isFinite(total) || total <= 0) continue;
+      const keys = new Set<string>();
+      for (const d of Array.isArray(fs.disk) ? fs.disk : []) {
+        const m = /drive-((?:scsi|virtio|sata|ide)\d+)/.exec(String(d?.serial ?? ''));
+        if (m) keys.add(m[1]);
+      }
+      if (keys.size !== 1) continue; // ignora FS que não mapeia a exatamente 1 disco (LVM/RAID)
+      const key = [...keys][0];
+      const cur = agg.get(key) ?? { used: 0, total: 0, mounts: [] };
+      cur.used += used;
+      cur.total += total;
+      if (typeof fs.mountpoint === 'string') cur.mounts.push(fs.mountpoint);
+      agg.set(key, cur);
+    }
+    const toGB = (b: number) => b / 1024 ** 3;
+    return [...agg.entries()]
+      .map(([key, v]) => ({
+        key,
+        usedGB: toGB(v.used),
+        fsTotalGB: toGB(v.total),
+        usedPct: v.total > 0 ? Math.min(100, (v.used / v.total) * 100) : 0,
+        mounts: v.mounts,
+      }))
+      .sort((a, b) => a.key.localeCompare(b.key, undefined, { numeric: true }));
   }
 }
