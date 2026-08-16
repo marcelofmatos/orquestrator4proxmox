@@ -128,15 +128,23 @@ function ResizeDiskModal(
   const [increment, setIncrement] = useState('0');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [autoGrow, setAutoGrow] = useState(true);
+  const [growNote, setGrowNote] = useState('');
   const incrementGB = Number(increment) || 0;
   const newSizeGB = disk.sizeGB + incrementGB;
   const valid = incrementGB > 0;
   const overAvail = storage.data != null && incrementGB > storage.data.availGB;
 
   const submit = async () => {
-    setBusy(true); setError('');
-    try { await api.resizeDisk(vmid, disk.key, newSizeGB); onDone(); }
-    catch (err) { setError((err as Error).message); }
+    setBusy(true); setError(''); setGrowNote('');
+    try {
+      await api.resizeDisk(vmid, disk.key, newSizeGB);
+      if (autoGrow) {
+        const g = await api.growFilesystem(vmid, disk.key);
+        if (!g.grown) { setGrowNote(`Disco aumentado, mas o filesystem não foi expandido: ${g.reason ?? 'motivo desconhecido'}.`); }
+      }
+      onDone();
+    } catch (err) { setError((err as Error).message); }
     finally { setBusy(false); }
   };
 
@@ -155,10 +163,15 @@ function ResizeDiskModal(
             Aumento maior que o espaço livre relatado no storage ({fmtGB(storage.data!.availGB)}).
           </p>
         )}
+        <label style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '.5rem' }}>
+          <input type="checkbox" style={{ width: 'auto' }} checked={autoGrow} onChange={(e) => setAutoGrow(e.target.checked)} />
+          Expandir o filesystem automaticamente após aumentar
+        </label>
+        {growNote && <p style={{ color: '#f59e0b', fontSize: '.85rem', margin: 0 }}>{growNote}</p>}
         <p style={{ fontSize: '.85rem', opacity: .8 }}>
-          Depois de redimensionar, o filesystem dentro da VM ainda precisa ser crescido manualmente
-          (ex.: resize2fs, growpart ou xfs_growfs). Se for um servidor usando o template, reiniciar o
-          servidor também vai aplicar o redimensionamento no nível do filesystem.
+          Com a opção acima ligada, o filesystem (XFS de disco inteiro) é expandido online logo
+          após o aumento, sem reboot. Discos particionados/LVM ainda precisam ser crescidos
+          manualmente ou via reboot.
         </p>
         {error && <p className="error">{error}</p>}
         <div style={{ display: 'flex', gap: '.5rem', marginTop: '.5rem' }}>

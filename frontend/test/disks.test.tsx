@@ -17,6 +17,7 @@ vi.mock('../src/api.js', () => ({
       { key: 'scsi2', usedGB: 7.4, fsTotalGB: 100, usedPct: 7, mounts: ['/home'] },
     ]),
     resizeDisk: vi.fn().mockResolvedValue({ ok: true }),
+    growFilesystem: vi.fn().mockResolvedValue({ grown: true, key: 'scsi0', mountpoint: '/var', beforeGB: 32, afterGB: 64 }),
     addDisk: vi.fn().mockResolvedValue({ key: 'scsi1', interface: 'scsi', sizeGB: 50, storage: 'local-zfs' }),
     diskStorage: vi.fn().mockResolvedValue({ storage: 'local-zfs', totalGB: 500, usedGB: 230, availGB: 270 }),
     vmStorage: vi.fn().mockResolvedValue({ storage: 'local-zfs', totalGB: 500, usedGB: 230, availGB: 270 }),
@@ -108,5 +109,35 @@ describe('Disks', () => {
     await userEvent.type(input, '50');
     await userEvent.click(screen.getByRole('button', { name: /adicionar disco/i }));
     expect(api.addDisk).toHaveBeenCalledWith(101, 50);
+  });
+
+  it('com o checkbox ligado, expande o filesystem após redimensionar', async () => {
+    const { api } = await import('../src/api.js');
+    render(wrap());
+    await screen.findByText('scsi0');
+    await userEvent.click(screen.getAllByRole('button', { name: /redimensionar/i })[0]);
+    await screen.findByText(/usados no storage/i);
+    const input = screen.getByLabelText(/aumentar em/i);
+    await userEvent.clear(input);
+    await userEvent.type(input, '32');
+    await userEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    expect(api.resizeDisk).toHaveBeenCalledWith(101, 'scsi0', 64);
+    expect(api.growFilesystem).toHaveBeenCalledWith(101, 'scsi0');
+  });
+
+  it('com o checkbox desligado, NÃO expande o filesystem', async () => {
+    const { api } = await import('../src/api.js');
+    (api.growFilesystem as any).mockClear();
+    render(wrap());
+    await screen.findByText('scsi0');
+    await userEvent.click(screen.getAllByRole('button', { name: /redimensionar/i })[0]);
+    await screen.findByText(/usados no storage/i);
+    await userEvent.click(screen.getByLabelText(/expandir o filesystem/i)); // desmarca
+    const input = screen.getByLabelText(/aumentar em/i);
+    await userEvent.clear(input);
+    await userEvent.type(input, '32');
+    await userEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    expect(api.resizeDisk).toHaveBeenCalled();
+    expect(api.growFilesystem).not.toHaveBeenCalled();
   });
 });
