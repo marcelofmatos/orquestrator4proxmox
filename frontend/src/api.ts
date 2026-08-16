@@ -18,6 +18,7 @@ export interface Template { vmid: number; name?: string; node: string; tags?: st
 export interface VmDisk { key: string; interface: 'scsi' | 'virtio' | 'sata' | 'ide'; sizeGB: number; storage: string; }
 export interface StorageStatus { storage: string; totalGB: number; usedGB: number; availGB: number; }
 export interface DiskUsage { key: string; usedGB: number; fsTotalGB: number; usedPct: number; mounts: string[]; }
+export interface GrowResult { grown: boolean; key: string; mountpoint?: string; beforeGB?: number; afterGB?: number; reason?: string; }
 export interface Dashboard { total: number; running: number; stopped: number; allocatedVcpu: number; allocatedMemMB: number; totalVcpu: number; totalMemMB: number; }
 export interface Me { username: string; groups: string[]; }
 
@@ -33,6 +34,7 @@ export const api = {
   disks: (id: number) => req<VmDisk[]>('GET', `/api/vms/${id}/disks`),
   disksUsage: (id: number) => req<DiskUsage[]>('GET', `/api/vms/${id}/disks/usage`),
   resizeDisk: (id: number, key: string, sizeGB: number) => req<{ ok: true }>('POST', `/api/vms/${id}/disks/${key}/resize`, { sizeGB }),
+  growFilesystem: (id: number, key: string) => req<GrowResult>('POST', `/api/vms/${id}/disks/${key}/grow`),
   addDisk: (id: number, sizeGB: number) => req<VmDisk>('POST', `/api/vms/${id}/disks`, { sizeGB }),
   vmStorage: (id: number) => req<StorageStatus>('GET', `/api/vms/${id}/storage`),
   diskStorage: (id: number, key: string) => req<StorageStatus>('GET', `/api/vms/${id}/disks/${key}/storage`),
