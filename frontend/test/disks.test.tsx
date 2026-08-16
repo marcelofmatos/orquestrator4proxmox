@@ -7,7 +7,7 @@ import { Disks } from '../src/pages/Disks.js';
 
 vi.mock('../src/api.js', () => ({
   api: {
-    vm: vi.fn().mockResolvedValue({ vmid: 101, name: 'alemartiadv', node: 'sp1-sd-nhw-1' }),
+    vm: vi.fn().mockResolvedValue({ vmid: 101, name: 'alemartiadv', node: 'sp1-sd-nhw-1', status: { status: 'running' } }),
     disks: vi.fn().mockResolvedValue([
       { key: 'scsi0', interface: 'scsi', sizeGB: 32, storage: 'local-zfs' },
       { key: 'scsi2', interface: 'scsi', sizeGB: 180, storage: 'local-zfs' },
@@ -58,6 +58,16 @@ describe('Disks', () => {
     render(wrap());
     await screen.findByText('scsi2');
     expect(await screen.findByText(/sem dados do agente/i)).toBeInTheDocument();
+  });
+
+  it('mostra "VM desligada" no uso quando a VM está parada', async () => {
+    const { api } = await import('../src/api.js');
+    (api.vm as any).mockResolvedValueOnce({ vmid: 101, name: 'alemartiadv', node: 'sp1-sd-nhw-1', status: { status: 'stopped' } });
+    (api.disksUsage as any).mockResolvedValueOnce([]); // VM parada → agent não responde
+    render(wrap());
+    await screen.findByText('scsi0');
+    expect(await screen.findAllByText(/vm desligada/i)).not.toHaveLength(0);
+    expect(screen.queryByText(/sem dados do agente/i)).not.toBeInTheDocument();
   });
 
   it('redimensiona um disco somando o incremento ao tamanho atual, com preview em tempo real', async () => {

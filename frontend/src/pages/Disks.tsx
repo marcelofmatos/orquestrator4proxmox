@@ -7,9 +7,13 @@ function fmtGB(n: number): string {
   return `${Math.round(n)} GB`;
 }
 
-/** Barra de uso real do disco (guest agent). Sem dado do agente → aviso discreto. */
-function DiskUsageBar({ usage }: { usage?: DiskUsage }) {
-  if (!usage) return <span style={{ opacity: .5, fontSize: '.85rem' }}>sem dados do agente</span>;
+/** Barra de uso real do disco (guest agent). Sem dado → aviso discreto do porquê. */
+function DiskUsageBar({ usage, vmStopped }: { usage?: DiskUsage; vmStopped?: boolean }) {
+  if (!usage) {
+    // VM desligada: o agent não roda; ligada e mesmo assim sem dado: agent ausente/parado
+    const label = vmStopped ? 'VM desligada' : 'sem dados do agente';
+    return <span style={{ opacity: .5, fontSize: '.85rem' }}>{label}</span>;
+  }
   const pct = Math.round(usage.usedPct);
   return (
     <div title={usage.mounts.join(', ')} style={{ minWidth: 140 }}>
@@ -60,6 +64,9 @@ export function Disks() {
   // uso real por disco (guest agent) — atualiza sozinho, sem travar a tela se o agente estiver off
   const usage = useQuery({ queryKey: ['vm-disk-usage', vmid], queryFn: () => api.disksUsage(vmid), refetchInterval: 15000 });
   const usageByKey = new Map((usage.data ?? []).map((u) => [u.key, u]));
+  // status vem do status/current (objeto). Só marca "desligada" quando já sabemos o status.
+  const vmStatus = (vm.data?.status as any)?.status as string | undefined;
+  const vmStopped = vmStatus != null && vmStatus !== 'running';
   const [resizing, setResizing] = useState<VmDisk | null>(null);
   const [adding, setAdding] = useState(false);
 
@@ -93,7 +100,7 @@ export function Disks() {
                 <td>{d.interface}</td>
                 <td>{d.storage}</td>
                 <td>{d.sizeGB} GB</td>
-                <td><DiskUsageBar usage={usageByKey.get(d.key)} /></td>
+                <td><DiskUsageBar usage={usageByKey.get(d.key)} vmStopped={vmStopped} /></td>
                 <td><button onClick={() => setResizing(d)} style={{ background: '#2d3746' }}>Redimensionar</button></td>
               </tr>
             ))}
