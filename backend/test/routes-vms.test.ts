@@ -28,6 +28,7 @@ function fakeVmService() {
     resizeDisk: vi.fn(async () => undefined),
     storageStatus: vi.fn(async () => ({ storage: 'local-zfs', totalGB: 500, usedGB: 230, availGB: 270 })),
     diskStorageStatus: vi.fn(async () => ({ storage: 'local-zfs', totalGB: 500, usedGB: 230, availGB: 270 })),
+    growFilesystem: vi.fn(async () => ({ grown: true, key: 'scsi1', mountpoint: '/var', beforeGB: 36, afterGB: 64 })),
   };
 }
 
@@ -164,6 +165,25 @@ describe('rotas de VM', () => {
     const r = await app.inject({ method: 'GET', url: '/api/vms/101/disks/scsi0/storage', cookies: authCookie() });
     expect(r.statusCode).toBe(200);
     expect(svc.diskStorageStatus).toHaveBeenCalledWith(101, 'scsi0');
+    await app.close();
+  });
+
+  it('expande o filesystem de um disco', async () => {
+    const svc = fakeVmService();
+    const app = buildApp(cfg(), { authenticate: vi.fn() as any, vmService: svc as any });
+    const r = await app.inject({ method: 'POST', url: '/api/vms/101/disks/scsi1/grow', cookies: authCookie() });
+    expect(r.statusCode).toBe(200);
+    expect(svc.growFilesystem).toHaveBeenCalledWith(101, 'scsi1');
+    expect(r.json()).toMatchObject({ grown: true, mountpoint: '/var' });
+    await app.close();
+  });
+
+  it('rejeita chave inválida no grow com 400', async () => {
+    const svc = fakeVmService();
+    const app = buildApp(cfg(), { authenticate: vi.fn() as any, vmService: svc as any });
+    const r = await app.inject({ method: 'POST', url: '/api/vms/101/disks/xpto/grow', cookies: authCookie() });
+    expect(r.statusCode).toBe(400);
+    expect(svc.growFilesystem).not.toHaveBeenCalled();
     await app.close();
   });
 });
