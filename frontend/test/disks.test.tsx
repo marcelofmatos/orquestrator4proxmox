@@ -140,4 +140,25 @@ describe('Disks', () => {
     expect(api.resizeDisk).toHaveBeenCalled();
     expect(api.growFilesystem).not.toHaveBeenCalled();
   });
+
+  it('mostra "Expandir FS" quando o disco tem sobra e chama growFilesystem', async () => {
+    const { api } = await import('../src/api.js');
+    (api.growFilesystem as any).mockClear();
+    (api.disks as any).mockResolvedValueOnce([{ key: 'scsi2', interface: 'scsi', sizeGB: 80, storage: 'local-zfs' }]);
+    (api.disksUsage as any).mockResolvedValueOnce([{ key: 'scsi2', usedGB: 7, fsTotalGB: 40, usedPct: 18, mounts: ['/home'] }]);
+    render(wrap());
+    await screen.findByText('scsi2');
+    const btn = await screen.findByRole('button', { name: /expandir fs/i });
+    await userEvent.click(btn);
+    expect(api.growFilesystem).toHaveBeenCalledWith(101, 'scsi2');
+  });
+
+  it('não mostra "Expandir FS" quando o FS já preenche o disco', async () => {
+    const { api } = await import('../src/api.js');
+    (api.disks as any).mockResolvedValueOnce([{ key: 'scsi0', interface: 'scsi', sizeGB: 40, storage: 'local-zfs' }]);
+    (api.disksUsage as any).mockResolvedValueOnce([{ key: 'scsi0', usedGB: 10, fsTotalGB: 40, usedPct: 25, mounts: ['/'] }]);
+    render(wrap());
+    await screen.findByText('scsi0');
+    expect(screen.queryByRole('button', { name: /expandir fs/i })).not.toBeInTheDocument();
+  });
 });

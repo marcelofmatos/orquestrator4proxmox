@@ -8,13 +8,16 @@ function fmtGB(n: number): string {
 }
 
 /** Barra de uso real do disco (guest agent). Sem dado → aviso discreto do porquê. */
-function DiskUsageBar({ usage, vmStopped }: { usage?: DiskUsage; vmStopped?: boolean }) {
+function DiskUsageBar({ usage, vmStopped, diskSizeGB, onGrow, growing }: {
+  usage?: DiskUsage; vmStopped?: boolean; diskSizeGB?: number; onGrow?: () => void; growing?: boolean;
+}) {
   if (!usage) {
     // VM desligada: o agent não roda; ligada e mesmo assim sem dado: agent ausente/parado
     const label = vmStopped ? 'VM desligada' : 'sem dados do agente';
     return <span style={{ opacity: .5, fontSize: '.85rem' }}>{label}</span>;
   }
   const pct = Math.round(usage.usedPct);
+  const hasSlack = diskSizeGB != null && diskSizeGB > usage.fsTotalGB + 1;
   return (
     <div title={usage.mounts.join(', ')} style={{ minWidth: 140 }}>
       <div style={{ fontSize: '.8rem', opacity: .85, marginBottom: '.25rem' }}>
@@ -23,6 +26,11 @@ function DiskUsageBar({ usage, vmStopped }: { usage?: DiskUsage; vmStopped?: boo
       <div className="gauge">
         <div className="gauge-fill" style={{ width: `${usage.usedPct}%`, background: gaugeColor(usage.usedPct) }} />
       </div>
+      {hasSlack && onGrow && (
+        <button onClick={onGrow} disabled={growing} style={{ marginTop: '.35rem', background: '#2d3746', fontSize: '.78rem', padding: '.25rem .5rem' }}>
+          {growing ? <><span className="spinner" /> Expandindo…</> : 'Expandir FS'}
+        </button>
+      )}
     </div>
   );
 }
@@ -69,11 +77,18 @@ export function Disks() {
   const vmStopped = vmStatus != null && vmStatus !== 'running';
   const [resizing, setResizing] = useState<VmDisk | null>(null);
   const [adding, setAdding] = useState(false);
+  const [growingKey, setGrowingKey] = useState<string | null>(null);
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['vm-disks', vmid] });
     qc.invalidateQueries({ queryKey: ['vm-disk-usage', vmid] });
     qc.invalidateQueries({ queryKey: ['vm', vmid] });
+  };
+
+  const grow = async (key: string) => {
+    setGrowingKey(key);
+    try { await api.growFilesystem(vmid, key); refresh(); }
+    finally { setGrowingKey(null); }
   };
 
   return (
@@ -100,7 +115,8 @@ export function Disks() {
                 <td>{d.interface}</td>
                 <td>{d.storage}</td>
                 <td>{d.sizeGB} GB</td>
-                <td><DiskUsageBar usage={usageByKey.get(d.key)} vmStopped={vmStopped} /></td>
+                <td><DiskUsageBar usage={usageByKey.get(d.key)} vmStopped={vmStopped}
+                      diskSizeGB={d.sizeGB} onGrow={() => grow(d.key)} growing={growingKey === d.key} /></td>
                 <td><button onClick={() => setResizing(d)} style={{ background: '#2d3746' }}>Redimensionar</button></td>
               </tr>
             ))}
