@@ -123,11 +123,13 @@ jobs:
       - name: 📋 Create GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # via env (não interpolado no script): mensagens de commit com aspas/crases
+          # não quebram nem injetam comandos no shell do runner.
+          CHANGES: ${{ steps.changes.outputs.changelog }}
         run: |
           NEW_VERSION="${{ steps.version.outputs.new_version }}"
           CURRENT_VERSION="${{ steps.version.outputs.current_version }}"
           VERSION_TYPE="${{ github.event.inputs.version_type }}"
-          CHANGES="${{ steps.changes.outputs.changelog }}"
 
           PRERELEASE_FLAG=""
           if [ "${{ github.event.inputs.prerelease }}" = "true" ]; then
