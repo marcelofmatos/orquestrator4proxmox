@@ -136,7 +136,7 @@ export function Disks() {
 
       {resizing && (
         <ResizeDiskModal vmid={vmid} disk={resizing} onClose={() => setResizing(null)}
-          onDone={() => { setResizing(null); refresh(); }} />
+          onDone={() => { setResizing(null); refresh(); }} onRefresh={refresh} />
       )}
       {adding && (
         <AddDiskModal vmid={vmid} onClose={() => setAdding(false)}
@@ -147,7 +147,7 @@ export function Disks() {
 }
 
 function ResizeDiskModal(
-  { vmid, disk, onClose, onDone }: { vmid: number; disk: VmDisk; onClose: () => void; onDone: () => void },
+  { vmid, disk, onClose, onDone, onRefresh }: { vmid: number; disk: VmDisk; onClose: () => void; onDone: () => void; onRefresh: () => void },
 ) {
   const storage = useQuery({ queryKey: ['disk-storage', vmid, disk.key], queryFn: () => api.diskStorage(vmid, disk.key) });
   const [increment, setIncrement] = useState('0');
@@ -166,7 +166,13 @@ function ResizeDiskModal(
       await api.resizeDisk(vmid, disk.key, newSizeGB);
       if (autoGrow) {
         const g = await api.growFilesystem(vmid, disk.key);
-        if (!g.grown) { setGrowNote(`Disco aumentado, mas o filesystem não foi expandido: ${g.reason ?? 'motivo desconhecido'}.`); }
+        if (!g.grown) {
+          // disco cresceu, mas o FS não: mantém o modal aberto com o motivo e
+          // atualiza a lista/uso por baixo; o usuário fecha quando quiser.
+          setGrowNote(`Disco aumentado, mas o filesystem não foi expandido: ${g.reason ?? 'motivo desconhecido'}.`);
+          onRefresh();
+          return;
+        }
       }
       onDone();
     } catch (err) { setError((err as Error).message); }

@@ -172,4 +172,21 @@ describe('Disks', () => {
     await userEvent.click(await screen.findByRole('button', { name: /expandir fs/i }));
     expect(await screen.findByText(/particionado ou LVM/i)).toBeInTheDocument();
   });
+
+  it('resize com auto-grow que falha mantém o modal aberto e mostra o motivo', async () => {
+    const { api } = await import('../src/api.js');
+    (api.growFilesystem as any).mockResolvedValueOnce({ grown: false, key: 'scsi0', reason: 'agente indisponível' });
+    render(wrap());
+    await screen.findByText('scsi0');
+    await userEvent.click(screen.getAllByRole('button', { name: /redimensionar/i })[0]);
+    await screen.findByText(/usados no storage/i);
+    const input = screen.getByLabelText(/aumentar em/i);
+    await userEvent.clear(input);
+    await userEvent.type(input, '32');
+    await userEvent.click(screen.getByRole('button', { name: /confirmar/i }));
+    expect(await screen.findByText(/não foi expandido/i)).toBeInTheDocument();
+    expect(screen.getByText(/agente indisponível/i)).toBeInTheDocument();
+    // o modal continua aberto (o campo ainda está na tela)
+    expect(screen.getByLabelText(/aumentar em/i)).toBeInTheDocument();
+  });
 });
