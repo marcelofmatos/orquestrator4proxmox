@@ -1,0 +1,18 @@
+#!/bin/sh
+# Cresce online o filesystem XFS de um disco inteiro quando o bloco aumenta.
+# Uso: o4p-autogrow <kernel-device>   (ex.: sdb). Idempotente e silencioso.
+set -eu
+dev="${1:-}"
+[ -n "$dev" ] || exit 0
+# só disco inteiro sd*/vd* (sem sufixo de partição)
+case "$dev" in
+  sd[a-z] | vd[a-z]) : ;;
+  *) exit 0 ;;
+esac
+node="/dev/$dev"
+mp="$(findmnt -fn -o TARGET --source "$node" 2>/dev/null || true)"
+[ -n "$mp" ] || exit 0
+fstype="$(findmnt -fn -o FSTYPE --source "$node" 2>/dev/null || true)"
+[ "$fstype" = "xfs" ] || exit 0
+if [ -w "/sys/block/$dev/device/rescan" ]; then echo 1 > "/sys/block/$dev/device/rescan" || true; fi
+xfs_growfs "$mp" || true

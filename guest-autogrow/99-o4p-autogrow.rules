@@ -1,0 +1,3 @@
+# Ao redimensionar um bloco de disco inteiro (evento change), dispara o autogrow
+# via systemd (nao bloqueia o worker do udev).
+ACTION=="change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", KERNEL=="sd[a-z]|vd[a-z]", TAG+="systemd", ENV{SYSTEMD_WANTS}+="o4p-autogrow@$kernel.service"

@@ -1,0 +1,7 @@
+[Unit]
+Description=Auto-grow XFS do disco %i apos resize
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/o4p-autogrow %i
