@@ -40,4 +40,21 @@ describe('ProxmoxClient', () => {
     const c = new ProxmoxClient(cfg, mockFetch({ errors: 'bad' }, false, 500) as unknown as typeof fetch);
     await expect(c.get('/x')).rejects.toThrow(/proxmox/i);
   });
+
+  it('agentExec serializa command repetido e agentExecStatus lê o pid', async () => {
+    const fetchMock = mockFetch({ data: { pid: 7 } });
+    const c = new ProxmoxClient(cfg, fetchMock as unknown as typeof fetch);
+    await c.agentExec('n1', 106, ['a', 'b']);
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://pve:8006/api2/json/nodes/n1/qemu/106/agent/exec');
+    const body = String((opts as RequestInit).body);
+    expect(body).toBe('command=a&command=b');
+
+    const statusMock = mockFetch({ data: { exited: 1, exitcode: 0, 'out-data': 'ok' } });
+    const c2 = new ProxmoxClient(cfg, statusMock as unknown as typeof fetch);
+    const st = await c2.agentExecStatus('n1', 106, 7);
+    expect(st).toEqual({ exited: 1, exitcode: 0, 'out-data': 'ok' });
+    const [surl] = statusMock.mock.calls[0];
+    expect(surl).toBe('https://pve:8006/api2/json/nodes/n1/qemu/106/agent/exec-status?pid=7');
+  });
 });
