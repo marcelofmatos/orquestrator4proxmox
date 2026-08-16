@@ -366,7 +366,7 @@ export class VmService {
   async growFilesystem(vmid: number, key: string): Promise<GrowResult> {
     const vm = await this.findVisible(vmid);
     const config = await this.px.get<Record<string, unknown>>(`/nodes/${vm.node}/qemu/${vmid}/config`);
-    if (typeof config[key] !== 'string') throw new NotFoundError();
+    if (typeof config[key] !== 'string') throw new NotFoundError('disco não encontrado');
 
     const readFs = async (): Promise<any[]> => {
       const info = await this.px.get<any>(`/nodes/${vm.node}/qemu/${vmid}/agent/get-fsinfo`);

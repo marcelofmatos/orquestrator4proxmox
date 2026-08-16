@@ -450,4 +450,52 @@ describe('VmService.growFilesystem', () => {
     const svc = new VmService(client as any, policy, 'local-zfs');
     await expect(svc.growFilesystem(100, 'scsi1')).rejects.toBeInstanceOf(NotFoundError);
   });
+
+  it('cresce ext4 de disco inteiro via resize2fs', async () => {
+    const ext4 = { result: [
+      { name: 'sdb', mountpoint: '/data', type: 'ext4', 'used-bytes': 1 * 1024 ** 3, 'total-bytes': 20 * 1024 ** 3,
+        disk: [{ serial: '0QEMU_QEMU_HARDDISK_drive-scsi1', dev: '/dev/sdb' }] },
+    ] };
+    const client = fakeClientGrow({ fsinfo: ext4 });
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    const r = await svc.growFilesystem(101, 'scsi1');
+    expect(r.grown).toBe(true);
+    expect(client.agentExec).toHaveBeenCalledWith('n1', 101, ['resize2fs', '/dev/sdb']);
+  });
+
+  it('tipo de filesystem não suportado → grown:false sem exec', async () => {
+    const btrfs = { result: [
+      { name: 'sdb', mountpoint: '/data', type: 'btrfs', 'used-bytes': 1, 'total-bytes': 2,
+        disk: [{ serial: '0QEMU_QEMU_HARDDISK_drive-scsi1', dev: '/dev/sdb' }] },
+    ] };
+    const client = fakeClientGrow({ fsinfo: btrfs });
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    const r = await svc.growFilesystem(101, 'scsi1');
+    expect(r.grown).toBe(false);
+    expect(r.reason).toMatch(/suportado/i);
+    expect(client.agentExec).not.toHaveBeenCalled();
+  });
+
+  it('grow que falha (exit != 0) → grown:false com o motivo', async () => {
+    const client = fakeClientGrow({ fsinfo: xfsWholeDisk, exitcode: 2 });
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    const r = await svc.growFilesystem(101, 'scsi1');
+    expect(r.grown).toBe(false);
+    expect(r.reason).toBeTruthy();
+  });
+
+  it('mais de um filesystem no mesmo disco → recusa (particionado/LVM)', async () => {
+    const multi = { result: [
+      { name: 'sdb1', mountpoint: '/a', type: 'xfs', 'used-bytes': 1, 'total-bytes': 2,
+        disk: [{ serial: '0QEMU_QEMU_HARDDISK_drive-scsi1', dev: '/dev/sdb' }] },
+      { name: 'sdb2', mountpoint: '/b', type: 'xfs', 'used-bytes': 1, 'total-bytes': 2,
+        disk: [{ serial: '0QEMU_QEMU_HARDDISK_drive-scsi1', dev: '/dev/sdb' }] },
+    ] };
+    const client = fakeClientGrow({ fsinfo: multi });
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    const r = await svc.growFilesystem(101, 'scsi1');
+    expect(r.grown).toBe(false);
+    expect(r.reason).toMatch(/particionado|LVM/i);
+    expect(client.agentExec).not.toHaveBeenCalled();
+  });
 });
