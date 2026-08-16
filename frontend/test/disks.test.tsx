@@ -161,4 +161,15 @@ describe('Disks', () => {
     await screen.findByText('scsi0');
     expect(screen.queryByRole('button', { name: /expandir fs/i })).not.toBeInTheDocument();
   });
+
+  it('Expandir FS que falha mostra o motivo ao usuário', async () => {
+    const { api } = await import('../src/api.js');
+    (api.growFilesystem as any).mockResolvedValueOnce({ grown: false, key: 'scsi2', reason: 'particionado ou LVM' });
+    (api.disks as any).mockResolvedValueOnce([{ key: 'scsi2', interface: 'scsi', sizeGB: 80, storage: 'local-zfs' }]);
+    (api.disksUsage as any).mockResolvedValueOnce([{ key: 'scsi2', usedGB: 7, fsTotalGB: 40, usedPct: 18, mounts: ['/home'] }]);
+    render(wrap());
+    await screen.findByText('scsi2');
+    await userEvent.click(await screen.findByRole('button', { name: /expandir fs/i }));
+    expect(await screen.findByText(/particionado ou LVM/i)).toBeInTheDocument();
+  });
 });

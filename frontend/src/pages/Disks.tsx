@@ -78,6 +78,7 @@ export function Disks() {
   const [resizing, setResizing] = useState<VmDisk | null>(null);
   const [adding, setAdding] = useState(false);
   const [growingKey, setGrowingKey] = useState<string | null>(null);
+  const [growMsg, setGrowMsg] = useState('');
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['vm-disks', vmid] });
@@ -86,9 +87,16 @@ export function Disks() {
   };
 
   const grow = async (key: string) => {
-    setGrowingKey(key);
-    try { await api.growFilesystem(vmid, key); refresh(); }
-    finally { setGrowingKey(null); }
+    setGrowingKey(key); setGrowMsg('');
+    try {
+      const g = await api.growFilesystem(vmid, key);
+      if (!g.grown) setGrowMsg(`${key}: filesystem não expandido — ${g.reason ?? 'motivo desconhecido'}.`);
+      refresh();
+    } catch (err) {
+      setGrowMsg(`${key}: falha ao expandir — ${(err as Error).message}`);
+    } finally {
+      setGrowingKey(null);
+    }
   };
 
   return (
@@ -123,6 +131,7 @@ export function Disks() {
           </tbody>
         </table>
       )}
+      {growMsg && <p style={{ color: '#f59e0b', fontSize: '.85rem', margin: '.6rem 0 0' }}>{growMsg}</p>}
       {disks.data?.length === 0 && <p>Nenhum disco encontrado.</p>}
 
       {resizing && (
@@ -185,7 +194,7 @@ function ResizeDiskModal(
         </label>
         {growNote && <p style={{ color: '#f59e0b', fontSize: '.85rem', margin: 0 }}>{growNote}</p>}
         <p style={{ fontSize: '.85rem', opacity: .8 }}>
-          Com a opção acima ligada, o filesystem (XFS de disco inteiro) é expandido online logo
+          Com a opção acima ligada, o filesystem (XFS ou ext4 de disco inteiro) é expandido online logo
           após o aumento, sem reboot. Discos particionados/LVM ainda precisam ser crescidos
           manualmente ou via reboot.
         </p>
