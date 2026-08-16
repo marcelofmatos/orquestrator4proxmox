@@ -3,6 +3,13 @@ import type { ClusterVm, TaskStatus } from '../proxmox/types.js';
 import { AppError, NotFoundError, ProxmoxError } from '../errors.js';
 import { filterVisible, isClientVisible, parseTags, type TagPolicy } from './visibility.js';
 import { parsePlans, stripPlansBlock, type Plan } from './plans.js';
+import { execInGuest } from './guest-exec.js';
+
+/** Extrai a chave de disco (scsiN, virtioN, …) do serial de um filesystem do guest agent. */
+function diskKeyFromSerial(serial: string): string | null {
+  const m = /drive-((?:scsi|virtio|sata|ide)\d+)/.exec(serial);
+  return m ? m[1] : null;
+}
 
 export interface CreateVmInput {
   templateId: number; name: string; plan?: string;
@@ -32,6 +39,16 @@ export interface DiskUsage {
   fsTotalGB: number;  // soma do total (tamanho formatado) dos filesystems do disco
   usedPct: number;    // 0–100
   mounts: string[];   // pontos de montagem (/, /var, …)
+}
+
+/** Resultado de uma tentativa de expandir o filesystem de um disco. */
+export interface GrowResult {
+  grown: boolean;
+  key: string;
+  mountpoint?: string;
+  beforeGB?: number;
+  afterGB?: number;
+  reason?: string;
 }
 
 export class VmService {
@@ -318,8 +335,8 @@ export class VmService {
       if (!Number.isFinite(used) || !Number.isFinite(total) || total <= 0) continue;
       const keys = new Set<string>();
       for (const d of Array.isArray(fs.disk) ? fs.disk : []) {
-        const m = /drive-((?:scsi|virtio|sata|ide)\d+)/.exec(String(d?.serial ?? ''));
-        if (m) keys.add(m[1]);
+        const key = diskKeyFromSerial(String(d?.serial ?? ''));
+        if (key) keys.add(key);
       }
       if (keys.size !== 1) continue; // ignora FS que não mapeia a exatamente 1 disco (LVM/RAID)
       const key = [...keys][0];
@@ -339,5 +356,68 @@ export class VmService {
         mounts: v.mounts,
       }))
       .sort((a, b) => a.key.localeCompare(b.key, undefined, { numeric: true }));
+  }
+
+  /**
+   * Expande, dentro do guest (QEMU agent), o filesystem do disco `key`.
+   * Só FS de disco inteiro (sdX/vdX sem partição). XFS via xfs_growfs; ext* via resize2fs.
+   * device/mount vêm do get-fsinfo (fonte confiável), nunca de input do cliente.
+   */
+  async growFilesystem(vmid: number, key: string): Promise<GrowResult> {
+    const vm = await this.findVisible(vmid);
+    const config = await this.px.get<Record<string, unknown>>(`/nodes/${vm.node}/qemu/${vmid}/config`);
+    if (typeof config[key] !== 'string') throw new NotFoundError();
+
+    const readFs = async (): Promise<any[]> => {
+      const info = await this.px.get<any>(`/nodes/${vm.node}/qemu/${vmid}/agent/get-fsinfo`);
+      const arr = Array.isArray(info) ? info : info?.result;
+      return Array.isArray(arr) ? arr : [];
+    };
+
+    let fsinfo: any[];
+    try { fsinfo = await readFs(); }
+    catch { return { grown: false, key, reason: 'agente indisponível' }; }
+
+    const matched = fsinfo.filter((fs) =>
+      (Array.isArray(fs.disk) ? fs.disk : []).some((d: any) => diskKeyFromSerial(String(d?.serial ?? '')) === key));
+    if (matched.length === 0) return { grown: false, key, reason: 'nada a crescer' };
+    if (matched.length > 1) return { grown: false, key, reason: 'particionado ou LVM — cresça por reboot' };
+
+    const fs = matched[0];
+    const name = String(fs.name ?? '');
+    const dev = String(fs.disk?.[0]?.dev ?? '');
+    const type = String(fs.type ?? '');
+    const mountpoint = String(fs.mountpoint ?? '');
+    const toGB = (b: number) => Number(b) / 1024 ** 3;
+    const beforeGB = toGB(fs['total-bytes']);
+
+    if (!/^(sd|vd)[a-z]+$/.test(name)) {
+      return { grown: false, key, mountpoint, beforeGB, reason: 'particionado ou LVM — cresça por reboot' };
+    }
+
+    let growArgv: string[];
+    if (type === 'xfs') growArgv = ['xfs_growfs', mountpoint];
+    else if (/^ext[234]$/.test(type)) growArgv = ['resize2fs', dev];
+    else return { grown: false, key, mountpoint, beforeGB, reason: `tipo ${type} não suportado` };
+
+    try {
+      await execInGuest(this.px, vm.node, vmid, ['/bin/sh', '-c', `echo 1 > /sys/block/${name}/device/rescan`]);
+      const res = await execInGuest(this.px, vm.node, vmid, growArgv);
+      if (res.exitcode !== 0) {
+        const why = /command not found|not found/i.test(res.errData) ? 'ferramenta ausente' : (res.errData.trim() || `exit ${res.exitcode}`);
+        return { grown: false, key, mountpoint, beforeGB, reason: why };
+      }
+    } catch {
+      return { grown: false, key, mountpoint, beforeGB, reason: 'agente indisponível' };
+    }
+
+    let afterGB = beforeGB;
+    try {
+      const after = await readFs();
+      const m2 = after.find((f) => (Array.isArray(f.disk) ? f.disk : []).some((d: any) => diskKeyFromSerial(String(d?.serial ?? '')) === key));
+      if (m2) afterGB = toGB(m2['total-bytes']);
+    } catch { /* mantém beforeGB */ }
+
+    return { grown: true, key, mountpoint, beforeGB, afterGB };
   }
 }

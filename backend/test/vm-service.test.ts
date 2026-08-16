@@ -357,3 +357,97 @@ describe('VmService.disksUsage', () => {
     await expect(svc.disksUsage(100)).rejects.toBeInstanceOf(NotFoundError);
   });
 });
+
+describe('VmService.growFilesystem', () => {
+  function fakeClientGrow(over: {
+    config?: Record<string, unknown>;
+    fsinfo?: any;
+    fsinfoAfter?: any;
+    execThrows?: boolean;
+    exitcode?: number;
+  } = {}) {
+    let fsinfoCalls = 0;
+    return {
+      get: vi.fn(async (path: string) => {
+        if (path === '/cluster/resources?type=vm') return resources;
+        if (path === '/nodes/n1/qemu/101/config') return over.config ?? { scsi1: 'local-zfs:vm-101-disk-1,size=64G' };
+        if (path.endsWith('/agent/get-fsinfo')) {
+          if (over.execThrows) throw new Error('VM 101 is not running');
+          fsinfoCalls++;
+          return fsinfoCalls === 1 ? (over.fsinfo ?? { result: [] }) : (over.fsinfoAfter ?? over.fsinfo ?? { result: [] });
+        }
+        return {};
+      }),
+      post: vi.fn(async () => 'UPID'),
+      put: vi.fn(async () => ({})),
+      del: vi.fn(async () => 'UPID'),
+      agentExec: vi.fn(async () => ({ pid: 1 })),
+      agentExecStatus: vi.fn(async () => ({ exited: 1, exitcode: over.exitcode ?? 0, 'out-data': 'ok' })),
+    };
+  }
+
+  const xfsWholeDisk = {
+    result: [
+      { name: 'sdb', mountpoint: '/var', type: 'xfs', 'used-bytes': 33 * 1024 ** 3, 'total-bytes': 36 * 1024 ** 3,
+        disk: [{ serial: '0QEMU_QEMU_HARDDISK_drive-scsi1', dev: '/dev/sdb' }] },
+    ],
+  };
+  const xfsAfter = {
+    result: [
+      { name: 'sdb', mountpoint: '/var', type: 'xfs', 'used-bytes': 33 * 1024 ** 3, 'total-bytes': 64 * 1024 ** 3,
+        disk: [{ serial: '0QEMU_QEMU_HARDDISK_drive-scsi1', dev: '/dev/sdb' }] },
+    ],
+  };
+
+  it('cresce um XFS de disco inteiro (rescan + xfs_growfs) e reporta antes/depois', async () => {
+    const client = fakeClientGrow({ fsinfo: xfsWholeDisk, fsinfoAfter: xfsAfter });
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    const r = await svc.growFilesystem(101, 'scsi1');
+    expect(r.grown).toBe(true);
+    expect(r.mountpoint).toBe('/var');
+    expect(Math.round(r.afterGB!)).toBe(64);
+    expect(client.agentExec).toHaveBeenCalledWith('n1', 101, ['xfs_growfs', '/var']);
+    expect(client.agentExec).toHaveBeenCalledWith('n1', 101, ['/bin/sh', '-c', 'echo 1 > /sys/block/sdb/device/rescan']);
+  });
+
+  it('recusa disco particionado (name com sufixo de partição)', async () => {
+    const partitioned = { result: [
+      { name: 'sda1', mountpoint: '/', type: 'xfs', 'used-bytes': 1, 'total-bytes': 2,
+        disk: [{ serial: '0QEMU_QEMU_HARDDISK_drive-scsi0', dev: '/dev/sda' }] },
+    ] };
+    const client = fakeClientGrow({ config: { scsi0: 'local-zfs:vm-101-disk-0,size=10G' }, fsinfo: partitioned });
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    const r = await svc.growFilesystem(101, 'scsi0');
+    expect(r.grown).toBe(false);
+    expect(r.reason).toMatch(/particionado|LVM/i);
+    expect(client.agentExec).not.toHaveBeenCalled();
+  });
+
+  it('devolve grown:false quando o agente não responde (sem lançar)', async () => {
+    const client = fakeClientGrow({ execThrows: true });
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    const r = await svc.growFilesystem(101, 'scsi1');
+    expect(r.grown).toBe(false);
+    expect(r.reason).toMatch(/agente/i);
+  });
+
+  it('disco sem filesystem mapeado → nada a crescer', async () => {
+    const client = fakeClientGrow({ fsinfo: { result: [] } });
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    const r = await svc.growFilesystem(101, 'scsi1');
+    expect(r.grown).toBe(false);
+    expect(r.reason).toMatch(/nada a crescer/i);
+  });
+
+  it('chave inexistente na config → NotFound', async () => {
+    const client = fakeClientGrow({ config: { scsi0: 'local-zfs:x,size=10G' } });
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    await expect(svc.growFilesystem(101, 'scsi5')).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it('VM de gestão → NotFound', async () => {
+    const client = fakeClientGrow({ fsinfo: xfsWholeDisk });
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    await expect(svc.growFilesystem(100, 'scsi1')).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
