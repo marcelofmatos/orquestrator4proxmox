@@ -29,6 +29,10 @@ function fakeVmService() {
     storageStatus: vi.fn(async () => ({ storage: 'local-zfs', totalGB: 500, usedGB: 230, availGB: 270 })),
     diskStorageStatus: vi.fn(async () => ({ storage: 'local-zfs', totalGB: 500, usedGB: 230, availGB: 270 })),
     growFilesystem: vi.fn(async () => ({ grown: true, key: 'scsi1', mountpoint: '/var', beforeGB: 36, afterGB: 64 })),
+    history: vi.fn(async () => [
+      { upid: 'UPID:n1:b', type: 'qmshutdown', label: 'Desligamento seguro', status: 'running',
+        running: true, ok: false, user: 'root@pam', starttime: 200, endtime: null, durationSec: null },
+    ]),
   };
 }
 
@@ -184,6 +188,32 @@ describe('rotas de VM', () => {
     const r = await app.inject({ method: 'POST', url: '/api/vms/101/disks/xpto/grow', cookies: authCookie() });
     expect(r.statusCode).toBe(400);
     expect(svc.growFilesystem).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it('retorna o histórico da VM com limit/start default', async () => {
+    const svc = fakeVmService();
+    const app = buildApp(cfg(), { authenticate: vi.fn() as any, vmService: svc as any });
+    const r = await app.inject({ method: 'GET', url: '/api/vms/101/historico', cookies: authCookie() });
+    expect(r.statusCode).toBe(200);
+    expect(svc.history).toHaveBeenCalledWith(101, { limit: 50, start: 0 });
+    expect(r.json()[0]).toMatchObject({ label: 'Desligamento seguro', running: true });
+    await app.close();
+  });
+  it('repassa limit/start da query', async () => {
+    const svc = fakeVmService();
+    const app = buildApp(cfg(), { authenticate: vi.fn() as any, vmService: svc as any });
+    const r = await app.inject({ method: 'GET', url: '/api/vms/101/historico?limit=25&start=50', cookies: authCookie() });
+    expect(r.statusCode).toBe(200);
+    expect(svc.history).toHaveBeenCalledWith(101, { limit: 25, start: 50 });
+    await app.close();
+  });
+  it('rejeita limit fora do intervalo com 400', async () => {
+    const svc = fakeVmService();
+    const app = buildApp(cfg(), { authenticate: vi.fn() as any, vmService: svc as any });
+    const r = await app.inject({ method: 'GET', url: '/api/vms/101/historico?limit=999', cookies: authCookie() });
+    expect(r.statusCode).toBe(400);
+    expect(svc.history).not.toHaveBeenCalled();
     await app.close();
   });
 });

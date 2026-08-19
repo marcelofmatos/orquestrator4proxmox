@@ -38,6 +38,10 @@ const diskKeyParam = z.object({
   key: z.string().regex(/^(scsi|virtio|sata|ide)([0-9]|[12][0-9]|30)$/),
 });
 const diskSizeBody = z.object({ sizeGB: z.number().int().positive() });
+const historyQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  start: z.coerce.number().int().min(0).default(0),
+});
 
 export async function registerVmRoutes(app: FastifyInstance, jwtSecret: string, vms: VmService) {
   const authHook = makeAuthHook(jwtSecret);
@@ -65,6 +69,12 @@ export async function registerVmRoutes(app: FastifyInstance, jwtSecret: string, 
   });
 
   app.get('/api/vms/:id/disks', async (req) => vms.listDisks(idParam.parse(req.params).id));
+
+  app.get('/api/vms/:id/historico', async (req) => {
+    const { id } = idParam.parse(req.params);
+    const { limit, start } = historyQuery.parse(req.query);
+    return vms.history(id, { limit, start });
+  });
 
   // uso real por disco (guest agent) — para identificar qual disco precisa crescer
   app.get('/api/vms/:id/disks/usage', async (req) => vms.disksUsage(idParam.parse(req.params).id));
