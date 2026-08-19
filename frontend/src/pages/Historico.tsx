@@ -1,4 +1,4 @@
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api.js';
 
@@ -28,6 +28,7 @@ function fmtDur(sec: number | null): string {
 export function Historico() {
   const { id } = useParams();
   const vmid = Number(id);
+  const vm = useQuery({ queryKey: ['vm', vmid], queryFn: () => api.vm(vmid) });
   const q = useInfiniteQuery({
     queryKey: ['historico', vmid],
     queryFn: ({ pageParam }) => api.history(vmid, { limit: PAGE, start: pageParam }),
@@ -41,7 +42,10 @@ export function Historico() {
   return (
     <div style={{ maxWidth: 900, margin: '2rem auto', padding: '0 1rem' }}>
       <Link to={`/vms/${vmid}`} className="navlink">← voltar</Link>
-      <h1 style={{ margin: '.5rem 0 1rem' }}>Histórico</h1>
+      <h1 style={{ margin: '.5rem 0 .15rem' }}>Histórico</h1>
+      <p style={{ color: '#8b97a7', margin: '0 0 1rem' }}>
+        <b style={{ color: 'var(--fg)' }}>{vm.data?.name ?? '…'}</b> · VM {vmid}{vm.data?.node ? ` · node ${vm.data.node}` : ''}
+      </p>
 
       {q.isLoading && <p>Carregando…</p>}
       {q.isError && items.length === 0 && <p className="error">Não foi possível carregar o histórico.</p>}

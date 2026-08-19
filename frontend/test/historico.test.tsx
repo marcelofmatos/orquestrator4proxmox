@@ -5,7 +5,7 @@ import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { Historico } from '../src/pages/Historico.js';
 
-vi.mock('../src/api.js', () => ({ api: { history: vi.fn() } }));
+vi.mock('../src/api.js', () => ({ api: { history: vi.fn(), vm: vi.fn().mockResolvedValue({ vmid: 101, name: 'c1', node: 'n1' }) } }));
 
 function wrap() {
   return (
@@ -36,6 +36,14 @@ describe('Historico', () => {
     expect(screen.getByText('Ligou')).toBeInTheDocument();
     expect(screen.getByText('em execução')).toBeInTheDocument();
     expect(screen.getAllByText('root@pam').length).toBeGreaterThan(0);
+  });
+
+  it('mostra o nome do host no cabeçalho', async () => {
+    const { api } = await import('../src/api.js');
+    (api.history as any).mockResolvedValue([]);
+    (api.vm as any).mockResolvedValue({ vmid: 109, name: 'web-cliente', node: 'n1' });
+    render(wrap());
+    expect(await screen.findByText('web-cliente')).toBeInTheDocument();
   });
 
   it('mostra estado vazio quando não há eventos', async () => {
