@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
@@ -28,6 +28,8 @@ function wrap() {
 }
 
 describe('VmDetail', () => {
+  beforeEach(() => vi.clearAllMocks());
+
   it('mostra as notas da VM renderizadas como markdown', async () => {
     render(wrap());
     const h = await screen.findByText('Plano Dedicado');
@@ -35,12 +37,43 @@ describe('VmDetail', () => {
     expect(screen.getByText('Acme').tagName).toBe('STRONG');
     expect(screen.queryByText(/## Plano Dedicado/)).toBeNull();
   });
-  it('liga a VM', async () => {
+  it('liga a VM após confirmar', async () => {
     const { api } = await import('../src/api.js');
     render(wrap());
     await screen.findByText('c1');
-    await userEvent.click(screen.getByRole('button', { name: /ligar/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'Ligar' }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Ligar' }));
     expect(api.action).toHaveBeenCalledWith(101, 'start');
+  });
+
+  it('usa o nome amigável "Desligamento seguro" no lugar de "Encerrar (ACPI)"', async () => {
+    render(wrap());
+    await screen.findByText('c1');
+    expect(screen.getByRole('button', { name: 'Desligamento seguro' })).toBeInTheDocument();
+    expect(screen.queryByText(/Encerrar \(ACPI\)/)).toBeNull();
+  });
+
+  it('explica e pede confirmação antes de forçar o desligamento', async () => {
+    const { api } = await import('../src/api.js');
+    render(wrap());
+    await screen.findByText('c1');
+    await userEvent.click(screen.getByRole('button', { name: 'Forçar desligamento' }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText(/perda ou corrupção de dados/i)).toBeInTheDocument();
+    expect(api.action).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Forçar desligamento' }));
+    expect(api.action).toHaveBeenCalledWith(101, 'stop');
+  });
+
+  it('cancelar não dispara a ação e fecha o diálogo', async () => {
+    const { api } = await import('../src/api.js');
+    render(wrap());
+    await screen.findByText('c1');
+    await userEvent.click(screen.getByRole('button', { name: 'Reiniciar' }));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancelar' }));
+    expect(api.action).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
   it('mostra o total de espaço em disco somando todos os discos', async () => {
     render(wrap());

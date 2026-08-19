@@ -5,6 +5,29 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { api, type VmDisk } from '../api.js';
 import { StatusBadge } from '../components/StatusBadge.js';
+import { ConfirmDialog } from '../components/ConfirmDialog.js';
+
+type Lifecycle = 'start' | 'stop' | 'shutdown' | 'reboot';
+
+// Rótulos amigáveis + explicação do que cada ação faz antes de confirmar.
+const ACTIONS: Record<Lifecycle, { label: string; title: string; confirm: string; danger: boolean; desc: string }> = {
+  start: {
+    label: 'Ligar', title: 'Ligar a VM?', confirm: 'Ligar', danger: false,
+    desc: 'A VM será iniciada e o sistema operacional vai carregar. É uma operação segura — nenhum dado é apagado.',
+  },
+  shutdown: {
+    label: 'Desligamento seguro', title: 'Desligar com segurança?', confirm: 'Desligar com segurança', danger: false,
+    desc: 'Envia o sinal de desligamento (ACPI) ao sistema, que fecha os programas abertos e desliga sozinho — como no botão "Desligar" de dentro da VM. Pode levar alguns segundos. É a forma recomendada de desligar.',
+  },
+  stop: {
+    label: 'Forçar desligamento', title: 'Forçar o desligamento?', confirm: 'Forçar desligamento', danger: true,
+    desc: 'Corta a energia da VM na hora, sem avisar o sistema — como puxar o cabo da tomada. Os programas não salvam o que estavam fazendo e pode haver perda ou corrupção de dados. Use apenas se o desligamento seguro travar.',
+  },
+  reboot: {
+    label: 'Reiniciar', title: 'Reiniciar a VM?', confirm: 'Reiniciar', danger: false,
+    desc: 'Reinicia a VM (desliga e liga de novo, via ACPI). Os programas em execução serão encerrados e os serviços ficam indisponíveis por alguns instantes.',
+  },
+};
 
 function fmtBytes(n?: number): string {
   if (!n || n <= 0) return '—';
@@ -50,11 +73,12 @@ export function VmDetail() {
   const qc = useQueryClient();
   const nav = useNavigate();
   const [busy, setBusy] = useState('');
+  const [pending, setPending] = useState<Lifecycle | ''>('');
   const [confirmName, setConfirmName] = useState('');
   const vm = useQuery({ queryKey: ['vm', vmid], queryFn: () => api.vm(vmid) });
   const disks = useQuery({ queryKey: ['vm-disks', vmid], queryFn: () => api.disks(vmid) });
 
-  const act = async (a: 'start' | 'stop' | 'shutdown' | 'reboot') => {
+  const act = async (a: Lifecycle) => {
     setBusy(a);
     try { await api.action(vmid, a); await qc.invalidateQueries({ queryKey: ['vm', vmid] }); }
     finally { setBusy(''); }
@@ -82,6 +106,17 @@ export function VmDetail() {
           <span className="spinner lg" /> {busy === 'delete' ? 'Excluindo a VM…' : 'Aplicando…'}
         </div></div>
       )}
+      {pending && (
+        <ConfirmDialog
+          title={ACTIONS[pending].title}
+          confirmLabel={ACTIONS[pending].confirm}
+          danger={ACTIONS[pending].danger}
+          onCancel={() => setPending('')}
+          onConfirm={() => { const a = pending; setPending(''); act(a); }}
+        >
+          {ACTIONS[pending].desc}
+        </ConfirmDialog>
+      )}
       {vm.isLoading && <p>Carregando…</p>}
       {vm.data && (
         <>
@@ -91,10 +126,10 @@ export function VmDetail() {
               <p style={{ color: '#8b97a7', margin: '.4rem 0 0' }}>VMID {vmid} · node {vm.data.node}{vm.data.tags ? ` · tags: ${vm.data.tags}` : ''}</p>
             </div>
             <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-              <button disabled={!!busy} onClick={() => act('start')}>Ligar</button>
-              <button disabled={!!busy} onClick={() => act('shutdown')} style={{ background: '#2d3746' }}>Encerrar (ACPI)</button>
-              <button disabled={!!busy} onClick={() => act('stop')} style={{ background: '#2d3746' }}>Forçar stop</button>
-              <button disabled={!!busy} onClick={() => act('reboot')} style={{ background: '#2d3746' }}>Reiniciar</button>
+              <button disabled={!!busy} onClick={() => setPending('start')}>{ACTIONS.start.label}</button>
+              <button disabled={!!busy} onClick={() => setPending('shutdown')} style={{ background: '#2d3746' }}>{ACTIONS.shutdown.label}</button>
+              <button disabled={!!busy} onClick={() => setPending('stop')} style={{ background: '#2d3746' }}>{ACTIONS.stop.label}</button>
+              <button disabled={!!busy} onClick={() => setPending('reboot')} style={{ background: '#2d3746' }}>{ACTIONS.reboot.label}</button>
               <Link to={`/vms/${vmid}/console`}><button>Console</button></Link>
               <Link to={`/vms/${vmid}/discos`}><button>Discos</button></Link>
             </div>
