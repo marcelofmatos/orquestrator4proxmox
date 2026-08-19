@@ -25,6 +25,10 @@ function fakeClient(over: Partial<Record<string, any>> = {}) {
       };
       if (path.endsWith('/config')) return { cores: 2, memory: '4096' };
       if (path.includes('/tasks/')) return { status: 'stopped', exitstatus: 'OK' };
+      if (path.includes('/tasks?')) return [
+        { upid: 'UPID:n1:a', type: 'qmstart', user: 'root@pam', status: 'OK', starttime: 100, endtime: 105 },
+        { upid: 'UPID:n1:b', type: 'qmshutdown', user: 'root@pam', status: 'running', starttime: 200 },
+      ];
       return {};
     }),
     post: vi.fn(async () => 'UPID:n1:xxxx'),
@@ -497,5 +501,21 @@ describe('VmService.growFilesystem', () => {
     expect(r.grown).toBe(false);
     expect(r.reason).toMatch(/particionado|LVM/i);
     expect(client.agentExec).not.toHaveBeenCalled();
+  });
+});
+
+describe('VmService.history', () => {
+  it('lê o task log do nó da VM e normaliza (mais recente primeiro)', async () => {
+    const client = fakeClient();
+    const svc = new VmService(client as any, policy, 'local-zfs');
+    const out = await svc.history(101, { limit: 50, start: 0 });
+    expect(client.get).toHaveBeenCalledWith('/nodes/n1/tasks?vmid=101&limit=50&start=0');
+    expect(out.map((e) => e.upid)).toEqual(['UPID:n1:b', 'UPID:n1:a']);
+    expect(out[0]).toMatchObject({ label: 'Desligamento seguro', running: true, ok: false });
+    expect(out[1]).toMatchObject({ label: 'Ligou', running: false, ok: true, durationSec: 5 });
+  });
+  it('barra VM não visível (gestão) com 404', async () => {
+    const svc = new VmService(fakeClient() as any, policy, 'local-zfs');
+    await expect(svc.history(100, { limit: 50, start: 0 })).rejects.toBeInstanceOf(NotFoundError);
   });
 });

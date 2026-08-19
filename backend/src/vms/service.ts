@@ -1,9 +1,10 @@
 import type { ProxmoxClient } from '../proxmox/client.js';
-import type { ClusterVm, TaskStatus } from '../proxmox/types.js';
+import type { ClusterVm, TaskStatus, ProxmoxTask } from '../proxmox/types.js';
 import { AppError, NotFoundError, ProxmoxError } from '../errors.js';
 import { filterVisible, isClientVisible, parseTags, type TagPolicy } from './visibility.js';
 import { parsePlans, stripPlansBlock, type Plan } from './plans.js';
 import { execInGuest } from './guest-exec.js';
+import { normalizeHistory, type HistoryEntry } from './history.js';
 
 /** Extrai a chave de disco (scsiN, virtioN, …) do serial de um filesystem do guest agent. */
 function diskKeyFromSerial(serial: string): string | null {
@@ -226,6 +227,15 @@ export class VmService {
     if (!node || !Number.isInteger(vmid)) throw new NotFoundError('tarefa não encontrada');
     await this.findVisible(vmid);
     return this.px.get(`/nodes/${node}/tasks/${encodeURIComponent(upid)}/status`);
+  }
+
+  /** Linha do tempo de ações da VM, lida do task log do nó (read-only). */
+  async history(vmid: number, opts: { limit: number; start: number }): Promise<HistoryEntry[]> {
+    const vm = await this.findVisible(vmid);
+    const raw = await this.px.get<ProxmoxTask[]>(
+      `/nodes/${vm.node}/tasks?vmid=${vmid}&limit=${opts.limit}&start=${opts.start}`,
+    );
+    return normalizeHistory(Array.isArray(raw) ? raw : []);
   }
 
   async dashboard() {
