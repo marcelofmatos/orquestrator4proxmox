@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
@@ -9,13 +9,18 @@ vi.mock('../src/api.js', () => ({ api: { history: vi.fn() } }));
 
 function wrap() {
   return (
-    <QueryClientProvider client={new QueryClient()}>
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter initialEntries={["/vms/101/historico"]}>
         <Routes><Route path="/vms/:id/historico" element={<Historico />} /></Routes>
       </MemoryRouter>
     </QueryClientProvider>
   );
 }
+
+const fullPage = () => Array.from({ length: 50 }, (_, i) => ({
+  upid: `u${i}`, type: 'qmstart', label: 'Ligou', status: 'OK', running: false, ok: true,
+  user: 'root@pam', starttime: 1000 - i, endtime: 1001 - i, durationSec: 1,
+}));
 
 describe('Historico', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -40,16 +45,24 @@ describe('Historico', () => {
     expect(await screen.findByText(/nenhuma ação registrada/i)).toBeInTheDocument();
   });
 
-  it('"Carregar mais" busca a próxima página com limit maior', async () => {
+  it('"Carregar mais" busca a próxima página pelo offset start', async () => {
     const { api } = await import('../src/api.js');
-    const page = Array.from({ length: 50 }, (_, i) => ({
-      upid: `u${i}`, type: 'qmstart', label: 'Ligou', status: 'OK', running: false, ok: true,
-      user: 'root@pam', starttime: 1000 - i, endtime: 1001 - i, durationSec: 1,
-    }));
-    (api.history as any).mockResolvedValue(page);
+    (api.history as any).mockResolvedValue(fullPage());
     render(wrap());
     await screen.findAllByText('Ligou');
     await userEvent.click(screen.getByRole('button', { name: /carregar mais/i }));
-    expect(api.history).toHaveBeenLastCalledWith(101, { limit: 100 });
+    await waitFor(() => expect(api.history).toHaveBeenLastCalledWith(101, { limit: 50, start: 50 }));
+  });
+
+  it('mantém a lista já carregada se "Carregar mais" falhar', async () => {
+    const { api } = await import('../src/api.js');
+    (api.history as any)
+      .mockResolvedValueOnce(fullPage())
+      .mockRejectedValueOnce(new Error('boom'));
+    render(wrap());
+    await screen.findAllByText('Ligou');
+    await userEvent.click(screen.getByRole('button', { name: /carregar mais/i }));
+    await screen.findByText(/não foi possível carregar mais/i);
+    expect(screen.getAllByText('Ligou').length).toBe(50);
   });
 });

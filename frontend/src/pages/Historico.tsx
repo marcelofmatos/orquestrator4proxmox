@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api.js';
+
+const PAGE = 50;
 
 function fmtAgo(sec: number): string {
   if (sec < 60) return 'há instantes';
@@ -27,10 +28,15 @@ function fmtDur(sec: number | null): string {
 export function Historico() {
   const { id } = useParams();
   const vmid = Number(id);
-  const [limit, setLimit] = useState(50);
-  const q = useQuery({ queryKey: ['historico', vmid, limit], queryFn: () => api.history(vmid, { limit }) });
-  const items = q.data ?? [];
-  const hasMore = items.length === limit;
+  const q = useInfiniteQuery({
+    queryKey: ['historico', vmid],
+    queryFn: ({ pageParam }) => api.history(vmid, { limit: PAGE, start: pageParam }),
+    initialPageParam: 0,
+    // próxima página = offset da última cheia; para quando a página vier incompleta.
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length === PAGE ? allPages.length * PAGE : undefined,
+  });
+  const items = q.data?.pages.flat() ?? [];
 
   return (
     <div style={{ maxWidth: 900, margin: '2rem auto', padding: '0 1rem' }}>
@@ -38,8 +44,8 @@ export function Historico() {
       <h1 style={{ margin: '.5rem 0 1rem' }}>Histórico</h1>
 
       {q.isLoading && <p>Carregando…</p>}
-      {q.isError && <p className="error">Não foi possível carregar o histórico.</p>}
-      {q.data && items.length === 0 && <p style={{ color: '#8b97a7' }}>Nenhuma ação registrada para esta VM.</p>}
+      {q.isError && items.length === 0 && <p className="error">Não foi possível carregar o histórico.</p>}
+      {q.isSuccess && items.length === 0 && <p style={{ color: '#8b97a7' }}>Nenhuma ação registrada para esta VM.</p>}
 
       {items.length > 0 && (
         <ul className="timeline">
@@ -65,10 +71,15 @@ export function Historico() {
         </ul>
       )}
 
-      {hasMore && (
-        <button className="ghost-btn" style={{ marginTop: '1rem' }} disabled={q.isFetching}
-          onClick={() => setLimit((l) => l + 50)}>
-          {q.isFetching ? <><span className="spinner" /> Carregando…</> : 'Carregar mais'}
+      {/* erro ao paginar: mantém a lista já carregada visível e apenas avisa */}
+      {q.isError && items.length > 0 && (
+        <p className="error" style={{ marginTop: '1rem' }}>Não foi possível carregar mais eventos.</p>
+      )}
+
+      {q.hasNextPage && (
+        <button className="ghost-btn" style={{ marginTop: '1rem' }} disabled={q.isFetchingNextPage}
+          onClick={() => q.fetchNextPage()}>
+          {q.isFetchingNextPage ? <><span className="spinner" /> Carregando…</> : 'Carregar mais'}
         </button>
       )}
     </div>
