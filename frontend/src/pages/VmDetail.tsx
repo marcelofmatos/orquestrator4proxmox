@@ -132,6 +132,7 @@ export function VmDetail() {
               <button disabled={!!busy} onClick={() => setPending('reboot')} style={{ background: '#2d3746' }}>{ACTIONS.reboot.label}</button>
               <Link to={`/vms/${vmid}/console`}><button>Console</button></Link>
               <Link to={`/vms/${vmid}/discos`}><button>Discos</button></Link>
+              <Link to={`/vms/${vmid}/historico`}><button>Histórico</button></Link>
             </div>
           </div>
 

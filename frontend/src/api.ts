@@ -19,6 +19,7 @@ export interface VmDisk { key: string; interface: 'scsi' | 'virtio' | 'sata' | '
 export interface StorageStatus { storage: string; totalGB: number; usedGB: number; availGB: number; }
 export interface DiskUsage { key: string; usedGB: number; fsTotalGB: number; usedPct: number; mounts: string[]; }
 export interface GrowResult { grown: boolean; key: string; mountpoint?: string; beforeGB?: number; afterGB?: number; reason?: string; }
+export interface HistoryEntry { upid: string; type: string; label: string; status: string; running: boolean; ok: boolean; user: string; starttime: number; endtime: number | null; durationSec: number | null; }
 export interface Dashboard { total: number; running: number; stopped: number; allocatedVcpu: number; allocatedMemMB: number; totalVcpu: number; totalMemMB: number; }
 export interface Me { username: string; groups: string[]; }
 
@@ -38,6 +39,8 @@ export const api = {
   addDisk: (id: number, sizeGB: number) => req<VmDisk>('POST', `/api/vms/${id}/disks`, { sizeGB }),
   vmStorage: (id: number) => req<StorageStatus>('GET', `/api/vms/${id}/storage`),
   diskStorage: (id: number, key: string) => req<StorageStatus>('GET', `/api/vms/${id}/disks/${key}/storage`),
+  history: (id: number, params: { limit?: number; start?: number } = {}) =>
+    req<HistoryEntry[]>('GET', `/api/vms/${id}/historico?limit=${params.limit ?? 50}&start=${params.start ?? 0}`),
   templates: () => req<Template[]>('GET', '/api/templates'),
   dashboard: () => req<Dashboard>('GET', '/api/dashboard'),
   console: (id: number) => req<{ wsPath: string; password: string }>('GET', `/api/vms/${id}/console`),

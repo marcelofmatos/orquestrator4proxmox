@@ -11,6 +11,7 @@ import { CreateWizard } from './pages/CreateWizard.js';
 import { CreateSimple } from './pages/CreateSimple.js';
 import { Disks } from './pages/Disks.js';
 import { Console } from './pages/Console.js';
+import { Historico } from './pages/Historico.js';
 import './styles.css';
 
 function Protected({ children }: { children: JSX.Element }) {
@@ -32,6 +33,7 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/vms/:id" element={<Protected><VmDetail /></Protected>} />
             <Route path="/vms/:id/discos" element={<Protected><Disks /></Protected>} />
             <Route path="/vms/:id/console" element={<Protected><Console /></Protected>} />
+            <Route path="/vms/:id/historico" element={<Protected><Historico /></Protected>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
